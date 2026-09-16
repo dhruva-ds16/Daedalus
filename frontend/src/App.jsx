@@ -11,7 +11,10 @@ import {
 
 import AuthScreen from "./components/AuthScreen";
 import TutorApp from "./components/TutorApp";
+
 import AdminPage from "./pages/AdminPage";
+import DashboardPage from "./pages/DashboardPage";
+import ProgramPage from "./pages/ProgramPage";
 
 
 function App() {
@@ -29,7 +32,12 @@ function App() {
   ] = useState(false);
 
   const [page, setPage] =
-    useState("tutor");
+    useState("dashboard");
+
+  const [
+    selectedProgram,
+    setSelectedProgram,
+  ] = useState(null);
 
 
   useEffect(() => {
@@ -109,7 +117,28 @@ function App() {
       authenticatedUser
     );
 
-    setPage("tutor");
+    setPage(
+      "dashboard"
+    );
+  }
+
+
+  function openProgram(
+    program
+  ) {
+    setSelectedProgram(
+      program
+    );
+
+    setPage(
+      "program"
+    );
+  }
+
+
+  function returnToDashboard() {
+    setSelectedProgram(null);
+    setPage("dashboard");
   }
 
 
@@ -125,7 +154,8 @@ function App() {
 
     } finally {
       setUser(null);
-      setPage("tutor");
+      setSelectedProgram(null);
+      setPage("dashboard");
     }
   }
 
@@ -174,7 +204,12 @@ function App() {
 
       <header className="header">
 
-        <div className="brand">
+        <div
+          className="brand brand-clickable"
+          onClick={
+            returnToDashboard
+          }
+        >
 
           <h1>
             DAEDALUS
@@ -189,6 +224,20 @@ function App() {
 
 
         <nav className="main-nav">
+
+          <button
+            className={
+              page === "dashboard"
+                ? "nav-button active"
+                : "nav-button"
+            }
+            onClick={
+              returnToDashboard
+            }
+          >
+            Dashboard
+          </button>
+
 
           <button
             className={
@@ -240,6 +289,7 @@ function App() {
 
           </div>
 
+
           <button
             className="logout-button"
             onClick={logout}
@@ -252,8 +302,37 @@ function App() {
       </header>
 
 
+      {page === "dashboard" && (
+
+        <DashboardPage
+          user={user}
+          onOpenTutor={() =>
+            setPage("tutor")
+          }
+          onOpenProgram={
+            openProgram
+          }
+        />
+
+      )}
+
+
       {page === "tutor" && (
         <TutorApp />
+      )}
+
+
+      {page === "program" && (
+
+        <ProgramPage
+          program={
+            selectedProgram
+          }
+          onBack={
+            returnToDashboard
+          }
+        />
+
       )}
 
 
