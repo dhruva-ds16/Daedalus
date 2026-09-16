@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -8,9 +10,14 @@ from app.services.ollama import stream_chat
 router = APIRouter()
 
 
+class Message(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
 class ChatRequest(BaseModel):
-    message: str
     model: str
+    messages: list[Message]
 
 
 @router.post("/chat/stream")
@@ -18,9 +25,17 @@ async def chat_stream(request: ChatRequest):
 
     async def generate():
         try:
+            messages = [
+                {
+                    "role": message.role,
+                    "content": message.content,
+                }
+                for message in request.messages
+            ]
+
             async for chunk in stream_chat(
                 model=request.model,
-                message=request.message,
+                messages=messages,
             ):
                 yield chunk
 

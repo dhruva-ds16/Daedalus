@@ -48,20 +48,23 @@ async def get_models():
     return models
 
 
-async def stream_chat(model: str, message: str):
+async def stream_chat(
+    model: str,
+    messages: list[dict],
+):
+    ollama_messages = [
+        {
+            "role": "system",
+            "content": SYSTEM_PROMPT,
+        }
+    ]
+
+    ollama_messages.extend(messages)
+
     payload = {
         "model": model,
         "keep_alive": OLLAMA_KEEP_ALIVE,
-        "messages": [
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": message,
-            },
-        ],
+        "messages": ollama_messages,
         "stream": True,
     }
 
