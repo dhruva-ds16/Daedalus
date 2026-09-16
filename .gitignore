@@ -1,0 +1,28 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Environment
+.env
+*.env
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# RAG data
+data/books/
+data/vectorstore/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
