@@ -60,23 +60,20 @@ function CodeBlock({
       </div>
 
       <SyntaxHighlighter
-        language={
-          language || "text"
-        }
-        style={vscDarkPlus}
-        customStyle={{
-          margin: 0,
-          borderRadius:
-            "0 0 8px 8px",
-          padding: "18px",
-          background: "#0d1117",
-          fontSize: "14px",
-        }}
-        wrapLongLines={true}
-      >
-        {code}
-      </SyntaxHighlighter>
-
+      language={language || "text"}
+      style={vscDarkPlus}
+      customStyle={{
+        margin: 0,
+        borderRadius: "0 0 8px 8px",
+        padding: "20px",
+        background: "#0d1117",
+        fontSize: "15px",
+        lineHeight: "1.65",
+      }}
+      wrapLongLines={true}
+    >
+      {code}
+    </SyntaxHighlighter>
     </div>
   );
 }
