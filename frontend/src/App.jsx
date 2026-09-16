@@ -1,13 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+
+import {
+  Prism as SyntaxHighlighter,
+} from "react-syntax-highlighter";
+
+import {
+  vscDarkPlus,
+} from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import "./App.css";
 
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL =
+  "http://127.0.0.1:8000";
 
 
 function formatModelSize(bytes) {
@@ -15,9 +27,21 @@ function formatModelSize(bytes) {
     return "";
   }
 
-  const gigabytes = bytes / 1024 / 1024 / 1024;
+  const gigabytes =
+    bytes / 1024 / 1024 / 1024;
 
   return `${gigabytes.toFixed(1)} GB`;
+}
+
+
+function formatDuration(milliseconds) {
+  if (!milliseconds) {
+    return "0.0s";
+  }
+
+  return `${(
+    milliseconds / 1000
+  ).toFixed(1)}s`;
 }
 
 
@@ -25,23 +49,33 @@ function CodeBlock({
   language,
   children,
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] =
+    useState(false);
 
-  const code = String(children).replace(/\n$/, "");
+  const code =
+    String(children).replace(
+      /\n$/,
+      ""
+    );
+
 
   async function copyCode() {
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(
+        code
+      );
 
       setCopied(true);
 
       setTimeout(() => {
         setCopied(false);
       }, 1500);
+
     } catch {
       setCopied(false);
     }
   }
+
 
   return (
     <div className="code-block">
@@ -56,17 +90,22 @@ function CodeBlock({
           className="copy-button"
           onClick={copyCode}
         >
-          {copied ? "Copied" : "Copy"}
+          {copied
+            ? "Copied"
+            : "Copy"}
         </button>
 
       </div>
 
       <SyntaxHighlighter
-        language={language || "text"}
+        language={
+          language || "text"
+        }
         style={vscDarkPlus}
         customStyle={{
           margin: 0,
-          borderRadius: "0 0 8px 8px",
+          borderRadius:
+            "0 0 8px 8px",
           padding: "18px",
           background: "#0d1117",
           fontSize: "14px",
@@ -86,7 +125,9 @@ function MarkdownMessage({
 }) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[
+        remarkGfm,
+      ]}
       components={{
         code({
           inline,
@@ -99,14 +140,17 @@ function MarkdownMessage({
               className || ""
             );
 
-          const language = match
-            ? match[1]
-            : "";
+          const language =
+            match
+              ? match[1]
+              : "";
 
           if (!inline && match) {
             return (
               <CodeBlock
-                language={language}
+                language={
+                  language
+                }
               >
                 {children}
               </CodeBlock>
@@ -123,7 +167,9 @@ function MarkdownMessage({
           );
         },
 
-        table({ children }) {
+        table({
+          children,
+        }) {
           return (
             <div className="table-wrapper">
               <table>
@@ -158,24 +204,66 @@ function MarkdownMessage({
 
 
 function App() {
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [input, setInput] =
+    useState("");
 
-  const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState("");
+  const [messages, setMessages] =
+    useState([]);
 
-  const [backendOnline, setBackendOnline] = useState(false);
-  const [ollamaOnline, setOllamaOnline] = useState(false);
+  const [loading, setLoading] =
+    useState(false);
 
-  const [initializing, setInitializing] = useState(true);
-  const [startupError, setStartupError] = useState("");
+  const [models, setModels] =
+    useState([]);
 
-  const bottomRef = useRef(null);
+  const [
+    selectedModel,
+    setSelectedModel,
+  ] = useState("");
+
+  const [
+    backendOnline,
+    setBackendOnline,
+  ] = useState(false);
+
+  const [
+    ollamaOnline,
+    setOllamaOnline,
+  ] = useState(false);
+
+  const [
+    initializing,
+    setInitializing,
+  ] = useState(true);
+
+  const [
+    startupError,
+    setStartupError,
+  ] = useState("");
+
+  const [
+    currentMetrics,
+    setCurrentMetrics,
+  ] = useState(null);
+
+  const [
+    firstTokenMs,
+    setFirstTokenMs,
+  ] = useState(null);
+
+  const bottomRef =
+    useRef(null);
+
+  const abortControllerRef =
+    useRef(null);
 
 
   useEffect(() => {
     initializeDaedalus();
+
+    return () => {
+      abortControllerRef.current?.abort();
+    };
   }, []);
 
 
@@ -191,7 +279,6 @@ function App() {
     setStartupError("");
 
     await checkHealth();
-
     await loadModels();
 
     setInitializing(false);
@@ -200,9 +287,10 @@ function App() {
 
   async function checkHealth() {
     try {
-      const response = await fetch(
-        `${API_URL}/health`
-      );
+      const response =
+        await fetch(
+          `${API_URL}/health`
+        );
 
       if (!response.ok) {
         throw new Error(
@@ -210,7 +298,8 @@ function App() {
         );
       }
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       setBackendOnline(
         data.backend === "online"
@@ -229,9 +318,10 @@ function App() {
 
   async function loadModels() {
     try {
-      const response = await fetch(
-        `${API_URL}/models`
-      );
+      const response =
+        await fetch(
+          `${API_URL}/models`
+        );
 
       if (!response.ok) {
         throw new Error(
@@ -239,14 +329,19 @@ function App() {
         );
       }
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       const availableModels =
         data.models || [];
 
-      setModels(availableModels);
+      setModels(
+        availableModels
+      );
 
-      if (availableModels.length === 0) {
+      if (
+        availableModels.length === 0
+      ) {
         setStartupError(
           "No Ollama models are installed."
         );
@@ -262,16 +357,24 @@ function App() {
       const savedModelExists =
         availableModels.some(
           (model) =>
-            model.name === savedModel
+            model.name ===
+            savedModel
         );
 
-      if (savedModel && savedModelExists) {
-        setSelectedModel(savedModel);
+      if (
+        savedModel &&
+        savedModelExists
+      ) {
+        setSelectedModel(
+          savedModel
+        );
       } else {
         const firstModel =
           availableModels[0].name;
 
-        setSelectedModel(firstModel);
+        setSelectedModel(
+          firstModel
+        );
 
         localStorage.setItem(
           "daedalus-selected-model",
@@ -287,8 +390,11 @@ function App() {
   }
 
 
-  function handleModelChange(event) {
-    const model = event.target.value;
+  function handleModelChange(
+    event
+  ) {
+    const model =
+      event.target.value;
 
     setSelectedModel(model);
 
@@ -297,22 +403,15 @@ function App() {
       model
     );
 
-    /*
-      Different models should not share
-      conversational context because they
-      may tokenize and interpret previous
-      responses differently.
-
-      For now, switching models starts a
-      fresh conversation.
-    */
-
     setMessages([]);
+    setCurrentMetrics(null);
+    setFirstTokenMs(null);
   }
 
 
   async function sendMessage() {
-    const question = input.trim();
+    const question =
+      input.trim();
 
     if (
       !question ||
@@ -345,6 +444,21 @@ function App() {
     setInput("");
     setLoading(true);
 
+    setCurrentMetrics(null);
+    setFirstTokenMs(null);
+
+    const controller =
+      new AbortController();
+
+    abortControllerRef.current =
+      controller;
+
+    const requestStart =
+      performance.now();
+
+    let receivedFirstToken =
+      false;
+
     try {
       const res = await fetch(
         `${API_URL}/chat/stream`,
@@ -352,14 +466,20 @@ function App() {
           method: "POST",
 
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
 
           body: JSON.stringify({
-            model: selectedModel,
+            model:
+              selectedModel,
+
             messages:
               conversationForRequest,
           }),
+
+          signal:
+            controller.signal,
         }
       );
 
@@ -375,8 +495,13 @@ function App() {
         );
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
+      const reader =
+        res.body.getReader();
+
+      const decoder =
+        new TextDecoder();
+
+      let buffer = "";
 
       while (true) {
         const {
@@ -388,62 +513,195 @@ function App() {
           break;
         }
 
-        const chunk = decoder.decode(
-          value,
-          {
-            stream: true,
-          }
-        );
+        buffer +=
+          decoder.decode(
+            value,
+            {
+              stream: true,
+            }
+          );
 
+        const lines =
+          buffer.split("\n");
+
+        buffer =
+          lines.pop() || "";
+
+        for (
+          const line of lines
+        ) {
+          if (!line.trim()) {
+            continue;
+          }
+
+          let event;
+
+          try {
+            event =
+              JSON.parse(line);
+          } catch {
+            continue;
+          }
+
+          if (
+            event.type ===
+            "token"
+          ) {
+            if (
+              !receivedFirstToken
+            ) {
+              receivedFirstToken =
+                true;
+
+              const elapsed =
+                performance.now()
+                - requestStart;
+
+              setFirstTokenMs(
+                Math.round(
+                  elapsed
+                )
+              );
+            }
+
+            setMessages(
+              (
+                currentMessages
+              ) => {
+                const updatedMessages =
+                  [
+                    ...currentMessages,
+                  ];
+
+                const lastIndex =
+                  updatedMessages.length
+                  - 1;
+
+                const assistantMessage =
+                  {
+                    ...updatedMessages[
+                      lastIndex
+                    ],
+                  };
+
+                assistantMessage.content +=
+                  event.content;
+
+                updatedMessages[
+                  lastIndex
+                ] =
+                  assistantMessage;
+
+                return updatedMessages;
+              }
+            );
+          }
+
+          if (
+            event.type ===
+            "metrics"
+          ) {
+            setCurrentMetrics(
+              event.metrics
+            );
+          }
+
+          if (
+            event.type ===
+            "error"
+          ) {
+            throw new Error(
+              event.message
+            );
+          }
+        }
+      }
+
+    } catch (error) {
+
+      if (
+        error.name ===
+        "AbortError"
+      ) {
         setMessages(
-          (currentMessages) => {
-            const updatedMessages = [
-              ...currentMessages,
-            ];
+          (
+            currentMessages
+          ) => {
+            const updatedMessages =
+              [
+                ...currentMessages,
+              ];
 
             const lastIndex =
-              updatedMessages.length - 1;
+              updatedMessages.length
+              - 1;
 
-            const assistantMessage = {
-              ...updatedMessages[lastIndex],
-            };
+            if (
+              updatedMessages[
+                lastIndex
+              ]?.role ===
+              "assistant"
+            ) {
+              updatedMessages[
+                lastIndex
+              ] = {
+                ...updatedMessages[
+                  lastIndex
+                ],
 
-            assistantMessage.content +=
-              chunk;
-
-            updatedMessages[lastIndex] =
-              assistantMessage;
+                content:
+                  updatedMessages[
+                    lastIndex
+                  ].content +
+                  "\n\n*Generation stopped.*",
+              };
+            }
 
             return updatedMessages;
           }
         );
+
+      } else {
+        setMessages(
+          (
+            currentMessages
+          ) => {
+            const updatedMessages =
+              [
+                ...currentMessages,
+              ];
+
+            const lastIndex =
+              updatedMessages.length
+              - 1;
+
+            updatedMessages[
+              lastIndex
+            ] = {
+              role: "assistant",
+
+              content:
+                `Unable to communicate with Daedalus: ${error.message}`,
+            };
+
+            return updatedMessages;
+          }
+        );
+
+        await checkHealth();
       }
-
-    } catch (error) {
-      setMessages(
-        (currentMessages) => {
-          const updatedMessages = [
-            ...currentMessages,
-          ];
-
-          const lastIndex =
-            updatedMessages.length - 1;
-
-          updatedMessages[lastIndex] = {
-            role: "assistant",
-            content:
-              `Unable to communicate with Daedalus: ${error.message}`,
-          };
-
-          return updatedMessages;
-        }
-      );
-
-      await checkHealth();
 
     } finally {
       setLoading(false);
+
+      abortControllerRef.current =
+        null;
     }
+  }
+
+
+  function stopGeneration() {
+    abortControllerRef.current?.abort();
   }
 
 
@@ -453,10 +711,14 @@ function App() {
     }
 
     setMessages([]);
+    setCurrentMetrics(null);
+    setFirstTokenMs(null);
   }
 
 
-  function handleKeyDown(event) {
+  function handleKeyDown(
+    event
+  ) {
     if (
       event.key === "Enter" &&
       !event.shiftKey
@@ -481,10 +743,13 @@ function App() {
 
         <div className="brand">
 
-          <h1>DAEDALUS</h1>
+          <h1>
+            DAEDALUS
+          </h1>
 
           <p>
-            Windows Internals & Rust Tutor
+            Windows Internals
+            & Rust Tutor
           </p>
 
         </div>
@@ -500,33 +765,45 @@ function App() {
 
             <select
               className="model-selector"
-              value={selectedModel}
-              onChange={handleModelChange}
+              value={
+                selectedModel
+              }
+              onChange={
+                handleModelChange
+              }
               disabled={
                 loading ||
                 models.length === 0
               }
             >
 
-              {models.length === 0 && (
+              {models.length ===
+                0 && (
                 <option value="">
                   No models
                 </option>
               )}
 
-              {models.map((model) => (
-                <option
-                  key={model.name}
-                  value={model.name}
-                >
-                  {model.name}
-                  {model.size
-                    ? ` (${formatModelSize(
-                        model.size
-                      )})`
-                    : ""}
-                </option>
-              ))}
+              {models.map(
+                (model) => (
+                  <option
+                    key={
+                      model.name
+                    }
+                    value={
+                      model.name
+                    }
+                  >
+                    {model.name}
+
+                    {model.size
+                      ? ` (${formatModelSize(
+                          model.size
+                        )})`
+                      : ""}
+                  </option>
+                )
+              )}
 
             </select>
 
@@ -536,7 +813,9 @@ function App() {
           {messages.length > 0 && (
             <button
               className="clear-button"
-              onClick={clearConversation}
+              onClick={
+                clearConversation
+              }
               disabled={loading}
             >
               Clear
@@ -547,6 +826,7 @@ function App() {
           <div className="service-status">
 
             <div className="status">
+
               <span
                 className={
                   `status-dot ${
@@ -559,9 +839,11 @@ function App() {
               </span>
 
               Backend
+
             </div>
 
             <div className="status">
+
               <span
                 className={
                   `status-dot ${
@@ -574,6 +856,7 @@ function App() {
               </span>
 
               Ollama
+
             </div>
 
           </div>
@@ -597,7 +880,8 @@ function App() {
             </h2>
 
             <p>
-              Checking local AI services...
+              Checking local AI
+              services...
             </p>
 
           </div>
@@ -606,7 +890,8 @@ function App() {
 
         {!initializing &&
           startupError &&
-          messages.length === 0 && (
+          messages.length ===
+            0 && (
 
           <div className="welcome">
 
@@ -615,7 +900,8 @@ function App() {
             </div>
 
             <h2>
-              Daedalus is not ready
+              Daedalus is not
+              ready
             </h2>
 
             <p>
@@ -637,7 +923,8 @@ function App() {
 
         {!initializing &&
           !startupError &&
-          messages.length === 0 && (
+          messages.length ===
+            0 && (
 
           <div className="welcome">
 
@@ -646,12 +933,14 @@ function App() {
             </div>
 
             <h2>
-              What are we learning today?
+              What are we
+              learning today?
             </h2>
 
             <p>
-              Ask about Windows Internals,
-              Rust, or systems programming.
+              Ask about Windows
+              Internals, Rust,
+              or systems programming.
             </p>
 
           </div>
@@ -662,13 +951,17 @@ function App() {
           <div className="conversation">
 
             {messages.map(
-              (message, index) => (
+              (
+                message,
+                index
+              ) => (
 
                 <div
                   key={index}
                   className={
                     `message ${
-                      message.role === "user"
+                      message.role ===
+                      "user"
                         ? "user-message"
                         : "tutor-message"
                     }`
@@ -676,9 +969,12 @@ function App() {
                 >
 
                   <div className="message-label">
-                    {message.role === "user"
+
+                    {message.role ===
+                    "user"
                       ? "You"
                       : "Daedalus"}
+
                   </div>
 
                   <div className="message-content">
@@ -701,7 +997,8 @@ function App() {
 
                     {loading &&
                       index ===
-                        messages.length - 1 &&
+                        messages.length
+                        - 1 &&
                       message.role ===
                         "assistant" && (
 
@@ -717,7 +1014,50 @@ function App() {
               )
             )}
 
-            <div ref={bottomRef}>
+
+            {!loading &&
+              currentMetrics && (
+
+              <div className="metrics">
+
+                <span>
+                  TTFT{" "}
+                  {firstTokenMs
+                    ? `${(
+                        firstTokenMs
+                        / 1000
+                      ).toFixed(2)}s`
+                    : "—"}
+                </span>
+
+                <span>
+                  {
+                    currentMetrics.generated_tokens
+                  }{" "}
+                  tokens
+                </span>
+
+                <span>
+                  {
+                    currentMetrics.tokens_per_second
+                  }{" "}
+                  tok/s
+                </span>
+
+                <span>
+                  {formatDuration(
+                    currentMetrics.total_duration_ms
+                  )}
+                </span>
+
+              </div>
+
+            )}
+
+
+            <div
+              ref={bottomRef}
+            >
             </div>
 
           </div>
@@ -737,30 +1077,48 @@ function App() {
                 event.target.value
               )
             }
-            onKeyDown={handleKeyDown}
+            onKeyDown={
+              handleKeyDown
+            }
             placeholder={
               ready
                 ? "Ask Daedalus..."
                 : "Daedalus is not ready..."
             }
             disabled={
-              loading || !ready
+              loading ||
+              !ready
             }
             rows={2}
           />
 
-          <button
-            onClick={sendMessage}
-            disabled={
-              loading ||
-              !input.trim() ||
-              !ready
-            }
-          >
-            {loading
-              ? "Thinking..."
-              : "Send"}
-          </button>
+
+          {loading ? (
+
+            <button
+              className="stop-button"
+              onClick={
+                stopGeneration
+              }
+            >
+              Stop
+            </button>
+
+          ) : (
+
+            <button
+              onClick={
+                sendMessage
+              }
+              disabled={
+                !input.trim() ||
+                !ready
+              }
+            >
+              Send
+            </button>
+
+          )}
 
         </div>
 

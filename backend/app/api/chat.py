@@ -1,3 +1,4 @@
+import json
 from typing import Literal
 
 from fastapi import APIRouter
@@ -11,7 +12,11 @@ router = APIRouter()
 
 
 class Message(BaseModel):
-    role: Literal["user", "assistant"]
+    role: Literal[
+        "user",
+        "assistant",
+    ]
+
     content: str
 
 
@@ -21,7 +26,9 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
+async def chat_stream(
+    request: ChatRequest,
+):
 
     async def generate():
         try:
@@ -33,19 +40,40 @@ async def chat_stream(request: ChatRequest):
                 for message in request.messages
             ]
 
-            async for chunk in stream_chat(
+            async for event in stream_chat(
                 model=request.model,
                 messages=messages,
             ):
-                yield chunk
+                yield (
+                    json.dumps(
+                        event,
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                ).encode("utf-8")
 
         except Exception as exc:
+            error_event = {
+                "type": "error",
+                "message": str(exc),
+            }
+
             yield (
-                "\n\n"
-                f"[Daedalus streaming error: {str(exc)}]"
-            )
+                json.dumps(
+                    error_event,
+                    ensure_ascii=False,
+                )
+                + "\n"
+            ).encode("utf-8")
 
     return StreamingResponse(
         generate(),
-        media_type="text/plain",
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control":
+                "no-cache, no-transform",
+
+            "X-Accel-Buffering":
+                "no",
+        },
     )
