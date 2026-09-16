@@ -6,6 +6,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import Text
+from sqlalchemy import UniqueConstraint
 
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
@@ -105,6 +106,13 @@ class User(Base):
         uselist=False,
     )
 
+    learning_programs: Mapped[
+        list["LearningProgram"]
+    ] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
 
 class AuthSession(Base):
     __tablename__ = "auth_sessions"
@@ -178,25 +186,19 @@ class LearnerProfile(Base):
         nullable=True,
     )
 
-    programming_experience: Mapped[
-        str
-    ] = mapped_column(
+    programming_experience: Mapped[str] = mapped_column(
         String(30),
         default="unknown",
         nullable=False,
     )
 
-    preferred_depth: Mapped[
-        str
-    ] = mapped_column(
+    preferred_depth: Mapped[str] = mapped_column(
         String(30),
         default="balanced",
         nullable=False,
     )
 
-    study_intensity: Mapped[
-        str
-    ] = mapped_column(
+    study_intensity: Mapped[str] = mapped_column(
         String(30),
         default="standard",
         nullable=False,
@@ -209,25 +211,19 @@ class LearnerProfile(Base):
         nullable=True,
     )
 
-    onboarding_complete: Mapped[
-        bool
-    ] = mapped_column(
+    onboarding_complete: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
         nullable=False,
     )
 
-    created_at: Mapped[
-        datetime
-    ] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
         nullable=False,
     )
 
-    updated_at: Mapped[
-        datetime
-    ] = mapped_column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
@@ -236,4 +232,89 @@ class LearnerProfile(Base):
 
     user: Mapped["User"] = relationship(
         back_populates="learner_profile"
+    )
+
+
+class LearningProgram(Base):
+    __tablename__ = "learning_programs"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "program_type",
+            name="uq_user_program_type",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    program_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+    )
+
+    title: Mapped[str] = mapped_column(
+        String(150),
+        nullable=False,
+    )
+
+    goal: Mapped[
+        str | None
+    ] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    starting_strategy: Mapped[str] = mapped_column(
+        String(30),
+        default="assessment",
+        nullable=False,
+    )
+
+    selected_level: Mapped[
+        str | None
+    ] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default="setup",
+        nullable=False,
+    )
+
+    curriculum_version: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship(
+        back_populates="learning_programs"
     )

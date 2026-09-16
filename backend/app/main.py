@@ -10,6 +10,7 @@ from app.api.database import router as database_router
 from app.api.health import router as health_router
 from app.api.models import router as models_router
 from app.api.profile import router as profile_router
+from app.api.programs import router as programs_router
 
 from app.config import (
     APP_NAME,
@@ -65,6 +66,10 @@ app.include_router(
 
 app.include_router(
     profile_router
+)
+
+app.include_router(
+    programs_router
 )
 
 app.include_router(
