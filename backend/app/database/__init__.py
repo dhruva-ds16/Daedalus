@@ -1,10 +1,9 @@
-from app.database.base import Base
-from app.database.session import engine
-
-
 def initialize_database():
-    from app.database import models
+    """
+    Database schema is managed exclusively by Alembic.
 
-    Base.metadata.create_all(
-        bind=engine
-    )
+    This function intentionally performs no schema creation.
+    It remains as an application startup hook so database
+    initialization behavior can be extended later if needed.
+    """
+    pass

@@ -5,6 +5,7 @@ from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
+from sqlalchemy import Text
 
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
@@ -96,6 +97,14 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
+    learner_profile: Mapped[
+        "LearnerProfile | None"
+    ] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
 
 class AuthSession(Base):
     __tablename__ = "auth_sessions"
@@ -141,4 +150,90 @@ class AuthSession(Base):
 
     user: Mapped["User"] = relationship(
         back_populates="sessions"
+    )
+
+
+class LearnerProfile(Base):
+    __tablename__ = "learner_profiles"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+        ),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    display_name: Mapped[
+        str | None
+    ] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    programming_experience: Mapped[
+        str
+    ] = mapped_column(
+        String(30),
+        default="unknown",
+        nullable=False,
+    )
+
+    preferred_depth: Mapped[
+        str
+    ] = mapped_column(
+        String(30),
+        default="balanced",
+        nullable=False,
+    )
+
+    study_intensity: Mapped[
+        str
+    ] = mapped_column(
+        String(30),
+        default="standard",
+        nullable=False,
+    )
+
+    learning_goal: Mapped[
+        str | None
+    ] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    onboarding_complete: Mapped[
+        bool
+    ] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    created_at: Mapped[
+        datetime
+    ] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[
+        datetime
+    ] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship(
+        back_populates="learner_profile"
     )
