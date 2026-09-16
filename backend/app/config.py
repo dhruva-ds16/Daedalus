@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 APP_NAME = "Daedalus"
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.3.1"
 
 
 # ---------------------------------------------------------
@@ -27,6 +27,23 @@ DATABASE_PATH = DATABASE_DIR / "daedalus.db"
 DATABASE_URL = (
     f"sqlite:///{DATABASE_PATH}"
 )
+
+
+# ---------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------
+
+SESSION_COOKIE_NAME = "daedalus_session"
+
+SESSION_LIFETIME_DAYS = 7
+
+SESSION_COOKIE_HTTPONLY = True
+
+SESSION_COOKIE_SAMESITE = "lax"
+
+# False is required while developing over local HTTP.
+# This MUST become True when Daedalus is served over HTTPS.
+SESSION_COOKIE_SECURE = False
 
 
 # ---------------------------------------------------------
