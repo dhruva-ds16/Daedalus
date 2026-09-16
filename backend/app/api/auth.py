@@ -24,7 +24,6 @@ from app.config import (
 )
 
 from app.database.models import User
-
 from app.database.session import get_db
 
 from app.services.auth import (
@@ -122,6 +121,7 @@ class UserResponse(BaseModel):
     id: int
     username: str
     is_active: bool
+    is_admin: bool
     created_at: datetime
 
 
@@ -136,6 +136,7 @@ def user_response(
         id=user.id,
         username=user.username,
         is_active=user.is_active,
+        is_admin=user.is_admin,
         created_at=user.created_at,
     )
 
@@ -147,7 +148,9 @@ def user_response(
 )
 async def register(
     request: RegisterRequest,
-    database: Session = Depends(get_db),
+    database: Session = Depends(
+        get_db
+    ),
 ):
     try:
         user = create_user(
@@ -162,7 +165,9 @@ async def register(
             detail="Username already exists.",
         )
 
-    return user_response(user)
+    return user_response(
+        user
+    )
 
 
 @router.post(
@@ -172,7 +177,9 @@ async def register(
 async def login(
     request: LoginRequest,
     response: Response,
-    database: Session = Depends(get_db),
+    database: Session = Depends(
+        get_db
+    ),
 ):
     try:
         user = authenticate_user(
@@ -184,13 +191,17 @@ async def login(
     except InvalidCredentialsError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password.",
+            detail=(
+                "Invalid username or password."
+            ),
         )
 
     except InactiveUserError:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive.",
+            detail=(
+                "User account is inactive."
+            ),
         )
 
     _, raw_token = create_auth_session(
@@ -215,7 +226,9 @@ async def login(
         path="/",
     )
 
-    return user_response(user)
+    return user_response(
+        user
+    )
 
 
 @router.get(
@@ -227,12 +240,16 @@ async def me(
         default=None,
         alias=SESSION_COOKIE_NAME,
     ),
-    database: Session = Depends(get_db),
+    database: Session = Depends(
+        get_db
+    ),
 ):
     if not session_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required.",
+            detail=(
+                "Authentication required."
+            ),
         )
 
     auth_session = get_auth_session(
@@ -243,7 +260,9 @@ async def me(
     if auth_session is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session.",
+            detail=(
+                "Invalid or expired session."
+            ),
         )
 
     return user_response(
@@ -261,7 +280,9 @@ async def logout(
         default=None,
         alias=SESSION_COOKIE_NAME,
     ),
-    database: Session = Depends(get_db),
+    database: Session = Depends(
+        get_db
+    ),
 ):
     if session_token:
         delete_auth_session(
