@@ -2,6 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import Boolean
 from sqlalchemy import DateTime
+from sqlalchemy import Float
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import String
@@ -179,9 +180,7 @@ class LearnerProfile(Base):
         index=True,
     )
 
-    display_name: Mapped[
-        str | None
-    ] = mapped_column(
+    display_name: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
     )
@@ -204,9 +203,7 @@ class LearnerProfile(Base):
         nullable=False,
     )
 
-    learning_goal: Mapped[
-        str | None
-    ] = mapped_column(
+    learning_goal: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
@@ -270,9 +267,7 @@ class LearningProgram(Base):
         nullable=False,
     )
 
-    goal: Mapped[
-        str | None
-    ] = mapped_column(
+    goal: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
@@ -283,9 +278,7 @@ class LearningProgram(Base):
         nullable=False,
     )
 
-    selected_level: Mapped[
-        str | None
-    ] = mapped_column(
+    selected_level: Mapped[str | None] = mapped_column(
         String(30),
         nullable=True,
     )
@@ -317,4 +310,172 @@ class LearningProgram(Base):
 
     user: Mapped["User"] = relationship(
         back_populates="learning_programs"
+    )
+
+    assessments: Mapped[
+        list["AssessmentSession"]
+    ] = relationship(
+        back_populates="program",
+        cascade="all, delete-orphan",
+    )
+
+
+class AssessmentSession(Base):
+    __tablename__ = "assessment_sessions"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    program_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "learning_programs.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default="in_progress",
+        nullable=False,
+    )
+
+    current_question: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
+    questions_answered: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
+    max_questions: Mapped[int] = mapped_column(
+        Integer,
+        default=12,
+        nullable=False,
+    )
+
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    program: Mapped["LearningProgram"] = relationship(
+        back_populates="assessments"
+    )
+
+    questions: Mapped[
+        list["AssessmentQuestion"]
+    ] = relationship(
+        back_populates="assessment",
+        cascade="all, delete-orphan",
+        order_by="AssessmentQuestion.sequence_number",
+    )
+
+
+class AssessmentQuestion(Base):
+    __tablename__ = "assessment_questions"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "assessment_id",
+            "sequence_number",
+            name="uq_assessment_question_sequence",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    assessment_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "assessment_sessions.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    sequence_number: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    concept: Mapped[str] = mapped_column(
+        String(150),
+        nullable=False,
+    )
+
+    difficulty: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+    )
+
+    question_text: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    learner_answer: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    score: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
+    evaluation: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    evidence: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    answered_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    assessment: Mapped[
+        "AssessmentSession"
+    ] = relationship(
+        back_populates="questions"
     )

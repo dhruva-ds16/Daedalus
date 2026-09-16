@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.admin import router as admin_router
+from app.api.assessments import router as assessments_router
 from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.database import router as database_router
@@ -70,6 +71,10 @@ app.include_router(
 
 app.include_router(
     programs_router
+)
+
+app.include_router(
+    assessments_router
 )
 
 app.include_router(
