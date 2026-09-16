@@ -1,18 +1,37 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.chat import router as chat_router
+from app.api.database import router as database_router
 from app.api.health import router as health_router
 from app.api.models import router as models_router
-from app.config import APP_NAME, APP_VERSION
+
+from app.config import (
+    APP_NAME,
+    APP_VERSION,
+)
+
+from app.database import initialize_database
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+
+    initialize_database()
+
+    yield
 
 
 app = FastAPI(
     title=APP_NAME,
     description=(
-        "Local AI tutor for Windows Internals and Rust"
+        "Adaptive AI tutor for Windows Internals "
+        "and Rust programming"
     ),
     version=APP_VERSION,
+    lifespan=lifespan,
 )
 
 
@@ -28,9 +47,21 @@ app.add_middleware(
 )
 
 
-app.include_router(health_router)
-app.include_router(models_router)
-app.include_router(chat_router)
+app.include_router(
+    health_router
+)
+
+app.include_router(
+    models_router
+)
+
+app.include_router(
+    chat_router
+)
+
+app.include_router(
+    database_router
+)
 
 
 @app.get("/")

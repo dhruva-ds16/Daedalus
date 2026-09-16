@@ -1,9 +1,46 @@
-OLLAMA_URL = "http://localhost:11434"
+from pathlib import Path
+
 
 APP_NAME = "Daedalus"
-APP_VERSION = "0.2.1"
+APP_VERSION = "0.3.0"
+
+
+# ---------------------------------------------------------
+# Project paths
+# ---------------------------------------------------------
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+
+PROJECT_ROOT = BACKEND_DIR.parent
+
+DATA_DIR = PROJECT_ROOT / "data"
+
+DATABASE_DIR = DATA_DIR / "database"
+
+DATABASE_PATH = DATABASE_DIR / "daedalus.db"
+
+
+# ---------------------------------------------------------
+# Database
+# ---------------------------------------------------------
+
+DATABASE_URL = (
+    f"sqlite:///{DATABASE_PATH}"
+)
+
+
+# ---------------------------------------------------------
+# Ollama
+# ---------------------------------------------------------
+
+OLLAMA_URL = "http://localhost:11434"
 
 OLLAMA_KEEP_ALIVE = "30m"
+
+
+# ---------------------------------------------------------
+# Tutor
+# ---------------------------------------------------------
 
 SYSTEM_PROMPT = """
 You are Daedalus, a technical tutor specializing in Windows Internals,
@@ -47,7 +84,7 @@ For conceptual questions:
 - Give the core explanation first.
 - Add only the details necessary to understand it.
 
-For questions asking "how" or requesting implementation:
+For questions asking how or requesting implementation:
 - Give practical steps or code.
 - Explain the important parts.
 - Avoid lengthy background unless required.
@@ -66,15 +103,6 @@ FORMATTING:
 - Avoid excessive headings.
 - Avoid excessive bold text.
 - Avoid unnecessary summaries.
-- Avoid phrases such as:
-  "Let's dive in"
-  "Let's break this down"
-  "Great question"
-  "It's important to understand"
-  "Before we begin"
-  "As your tutor"
-  "In the world of"
-  "Here's the exciting part"
 
 LEARNER LEVEL:
 Assume the learner understands basic programming concepts but is still
