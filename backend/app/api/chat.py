@@ -2,9 +2,13 @@ import json
 from typing import Literal
 
 from fastapi import APIRouter
+from fastapi import Depends
 from fastapi.responses import StreamingResponse
+
 from pydantic import BaseModel
 
+from app.api.dependencies import get_current_user
+from app.database.models import User
 from app.services.ollama import stream_chat
 
 
@@ -28,6 +32,9 @@ class ChatRequest(BaseModel):
 @router.post("/chat/stream")
 async def chat_stream(
     request: ChatRequest,
+    current_user: User = Depends(
+        get_current_user
+    ),
 ):
 
     async def generate():

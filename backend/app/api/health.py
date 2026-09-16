@@ -12,6 +12,7 @@ async def health():
 
     return {
         "backend": "online",
+
         "ollama": (
             "online"
             if ollama_online

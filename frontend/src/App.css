@@ -8,18 +8,22 @@ body {
 
 button,
 select,
-textarea {
+textarea,
+input {
   font: inherit;
 }
 
-.app {
+button {
+  cursor: pointer;
+}
+
+.app,
+.auth-page,
+.startup-screen {
   min-height: 100vh;
 
   background: #0b0d10;
   color: #e8e8e8;
-
-  display: flex;
-  flex-direction: column;
 
   font-family:
     Inter,
@@ -32,6 +36,236 @@ textarea {
 
 
 /* --------------------------------------------------
+   Startup
+-------------------------------------------------- */
+
+.startup-screen {
+  display: grid;
+  place-items: center;
+}
+
+.startup-content {
+  text-align: center;
+}
+
+.startup-content h1 {
+  margin: 18px 0 8px;
+
+  font-size: 22px;
+  letter-spacing: 5px;
+}
+
+.startup-content p {
+  margin: 0;
+
+  color: #747d89;
+}
+
+
+/* --------------------------------------------------
+   Authentication
+-------------------------------------------------- */
+
+.auth-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  padding: 40px 20px;
+}
+
+.auth-brand {
+  margin-bottom: 30px;
+
+  text-align: center;
+}
+
+.auth-logo {
+  width: 58px;
+  height: 58px;
+
+  margin: 0 auto;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid #424852;
+  border-radius: 12px;
+
+  font-size: 25px;
+  font-weight: 700;
+}
+
+.auth-brand h1 {
+  margin: 18px 0 7px;
+
+  font-size: 22px;
+  letter-spacing: 5px;
+}
+
+.auth-brand p {
+  margin: 0;
+
+  color: #747d89;
+
+  font-size: 14px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+
+  padding: 24px;
+
+  border: 1px solid #242a32;
+  border-radius: 12px;
+
+  background: #101318;
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+
+  margin-bottom: 25px;
+
+  border-bottom: 1px solid #242a32;
+}
+
+.auth-tab {
+  padding: 10px;
+
+  border: none;
+  border-bottom: 2px solid transparent;
+
+  background: transparent;
+  color: #747d89;
+
+  font-size: 13px;
+}
+
+.auth-tab:hover {
+  color: #c5cad1;
+}
+
+.auth-tab.active {
+  border-bottom-color: #e8e8e8;
+
+  color: #ffffff;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+
+  gap: 17px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+
+  gap: 7px;
+}
+
+.auth-field label {
+  color: #9ba3ae;
+
+  font-size: 12px;
+}
+
+.auth-field input {
+  width: 100%;
+
+  padding: 11px 12px;
+
+  border: 1px solid #303640;
+  border-radius: 7px;
+
+  outline: none;
+
+  background: #0b0d10;
+  color: #eeeeee;
+}
+
+.auth-field input:focus {
+  border-color: #626d7c;
+}
+
+.auth-field input:disabled {
+  opacity: 0.5;
+}
+
+.password-hint {
+  margin-top: -6px;
+
+  color: #626b77;
+
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.auth-error {
+  padding: 10px 12px;
+
+  border: 1px solid #62343b;
+  border-radius: 7px;
+
+  background: #231619;
+  color: #e27a83;
+
+  font-size: 12px;
+}
+
+.auth-submit {
+  min-height: 42px;
+
+  border: none;
+  border-radius: 7px;
+
+  background: #eeeeee;
+  color: #111111;
+
+  font-weight: 600;
+}
+
+.auth-submit:hover:not(:disabled) {
+  background: #ffffff;
+}
+
+.auth-submit:disabled {
+  opacity: 0.4;
+
+  cursor: not-allowed;
+}
+
+.auth-service-status {
+  margin-top: 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  color: #626b77;
+
+  font-size: 11px;
+}
+
+
+/* --------------------------------------------------
+   Application
+-------------------------------------------------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* --------------------------------------------------
    Header
 -------------------------------------------------- */
 
@@ -40,8 +274,7 @@ textarea {
 
   padding: 12px 32px;
 
-  border-bottom:
-    1px solid #24282f;
+  border-bottom: 1px solid #24282f;
 
   display: flex;
   align-items: center;
@@ -100,7 +333,7 @@ textarea {
 }
 
 .model-selector {
-  width: 290px;
+  width: 260px;
 
   padding: 8px 10px;
 
@@ -113,8 +346,6 @@ textarea {
   color: #d6d9de;
 
   font-size: 12px;
-
-  cursor: pointer;
 }
 
 .model-selector:hover:not(:disabled) {
@@ -133,7 +364,7 @@ textarea {
 
 
 /* --------------------------------------------------
-   Service status
+   Status
 -------------------------------------------------- */
 
 .service-status {
@@ -158,6 +389,8 @@ textarea {
   width: 7px;
   height: 7px;
 
+  display: inline-block;
+
   border-radius: 50%;
 
   background: #747d89;
@@ -181,7 +414,46 @@ textarea {
 
 
 /* --------------------------------------------------
-   Header buttons
+   User
+-------------------------------------------------- */
+
+.user-menu {
+  padding-left: 16px;
+
+  border-left: 1px solid #2b3038;
+
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+}
+
+.username {
+  color: #b7bec8;
+
+  font-size: 12px;
+}
+
+.logout-button {
+  padding: 6px 9px;
+
+  border: 1px solid #303640;
+  border-radius: 6px;
+
+  background: transparent;
+  color: #747d89;
+
+  font-size: 11px;
+}
+
+.logout-button:hover:not(:disabled) {
+  background: #171b21;
+  color: #ffffff;
+}
+
+
+/* --------------------------------------------------
+   General buttons
 -------------------------------------------------- */
 
 .clear-button,
@@ -196,8 +468,6 @@ textarea {
   color: #8e96a3;
 
   font-size: 12px;
-
-  cursor: pointer;
 }
 
 .clear-button:hover:not(:disabled),
@@ -207,7 +477,8 @@ textarea {
 }
 
 .clear-button:disabled,
-.retry-button:disabled {
+.retry-button:disabled,
+.logout-button:disabled {
   opacity: 0.4;
 
   cursor: not-allowed;
@@ -477,8 +748,6 @@ textarea {
   color: #8b949e;
 
   font-size: 12px;
-
-  cursor: pointer;
 }
 
 .copy-button:hover {
@@ -661,8 +930,6 @@ textarea {
   color: #111111;
 
   font-weight: 600;
-
-  cursor: pointer;
 }
 
 .composer button:hover:not(:disabled) {
@@ -706,7 +973,7 @@ textarea {
    Tablet
 -------------------------------------------------- */
 
-@media (max-width: 950px) {
+@media (max-width: 1100px) {
 
   .header {
     align-items: flex-start;
@@ -717,11 +984,7 @@ textarea {
   .header-actions {
     width: 100%;
 
-    justify-content: space-between;
-  }
-
-  .model-selector {
-    width: 260px;
+    flex-wrap: wrap;
   }
 }
 
@@ -731,6 +994,16 @@ textarea {
 -------------------------------------------------- */
 
 @media (max-width: 650px) {
+
+  .auth-page {
+    justify-content: flex-start;
+
+    padding-top: 60px;
+  }
+
+  .auth-card {
+    padding: 20px;
+  }
 
   .header {
     padding: 14px 18px;
@@ -763,6 +1036,18 @@ textarea {
   }
 
   .service-status {
+    justify-content: flex-end;
+  }
+
+  .user-menu {
+    padding:
+      10px
+      0
+      0;
+
+    border-left: none;
+    border-top: 1px solid #2b3038;
+
     justify-content: flex-end;
   }
 
