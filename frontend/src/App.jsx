@@ -7,8 +7,18 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "./App.css";
 
 
-const MODEL = "FieldMouse-AI/qwen3.5:9b-Q3_K_S-instruct";
 const API_URL = "http://127.0.0.1:8000";
+
+
+function formatModelSize(bytes) {
+  if (!bytes) {
+    return "";
+  }
+
+  const gigabytes = bytes / 1024 / 1024 / 1024;
+
+  return `${gigabytes.toFixed(1)} GB`;
+}
 
 
 function CodeBlock({
@@ -152,7 +162,21 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const [models, setModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState("");
+
+  const [backendOnline, setBackendOnline] = useState(false);
+  const [ollamaOnline, setOllamaOnline] = useState(false);
+
+  const [initializing, setInitializing] = useState(true);
+  const [startupError, setStartupError] = useState("");
+
   const bottomRef = useRef(null);
+
+
+  useEffect(() => {
+    initializeDaedalus();
+  }, []);
 
 
   useEffect(() => {
@@ -162,10 +186,141 @@ function App() {
   }, [messages]);
 
 
+  async function initializeDaedalus() {
+    setInitializing(true);
+    setStartupError("");
+
+    await checkHealth();
+
+    await loadModels();
+
+    setInitializing(false);
+  }
+
+
+  async function checkHealth() {
+    try {
+      const response = await fetch(
+        `${API_URL}/health`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `HTTP ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+
+      setBackendOnline(
+        data.backend === "online"
+      );
+
+      setOllamaOnline(
+        data.ollama === "online"
+      );
+
+    } catch {
+      setBackendOnline(false);
+      setOllamaOnline(false);
+    }
+  }
+
+
+  async function loadModels() {
+    try {
+      const response = await fetch(
+        `${API_URL}/models`
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `HTTP ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+
+      const availableModels =
+        data.models || [];
+
+      setModels(availableModels);
+
+      if (availableModels.length === 0) {
+        setStartupError(
+          "No Ollama models are installed."
+        );
+
+        return;
+      }
+
+      const savedModel =
+        localStorage.getItem(
+          "daedalus-selected-model"
+        );
+
+      const savedModelExists =
+        availableModels.some(
+          (model) =>
+            model.name === savedModel
+        );
+
+      if (savedModel && savedModelExists) {
+        setSelectedModel(savedModel);
+      } else {
+        const firstModel =
+          availableModels[0].name;
+
+        setSelectedModel(firstModel);
+
+        localStorage.setItem(
+          "daedalus-selected-model",
+          firstModel
+        );
+      }
+
+    } catch {
+      setStartupError(
+        "Unable to retrieve Ollama models."
+      );
+    }
+  }
+
+
+  function handleModelChange(event) {
+    const model = event.target.value;
+
+    setSelectedModel(model);
+
+    localStorage.setItem(
+      "daedalus-selected-model",
+      model
+    );
+
+    /*
+      Different models should not share
+      conversational context because they
+      may tokenize and interpret previous
+      responses differently.
+
+      For now, switching models starts a
+      fresh conversation.
+    */
+
+    setMessages([]);
+  }
+
+
   async function sendMessage() {
     const question = input.trim();
 
-    if (!question || loading) {
+    if (
+      !question ||
+      loading ||
+      !selectedModel ||
+      !backendOnline ||
+      !ollamaOnline
+    ) {
       return;
     }
 
@@ -201,8 +356,9 @@ function App() {
           },
 
           body: JSON.stringify({
-            model: MODEL,
-            messages: conversationForRequest,
+            model: selectedModel,
+            messages:
+              conversationForRequest,
           }),
         }
       );
@@ -262,6 +418,7 @@ function App() {
           }
         );
       }
+
     } catch (error) {
       setMessages(
         (currentMessages) => {
@@ -281,6 +438,9 @@ function App() {
           return updatedMessages;
         }
       );
+
+      await checkHealth();
+
     } finally {
       setLoading(false);
     }
@@ -302,9 +462,16 @@ function App() {
       !event.shiftKey
     ) {
       event.preventDefault();
+
       sendMessage();
     }
   }
+
+
+  const ready =
+    backendOnline &&
+    ollamaOnline &&
+    selectedModel;
 
 
   return (
@@ -312,15 +479,59 @@ function App() {
 
       <header className="header">
 
-        <div>
+        <div className="brand">
+
           <h1>DAEDALUS</h1>
 
           <p>
             Windows Internals & Rust Tutor
           </p>
+
         </div>
 
+
         <div className="header-actions">
+
+          <div className="model-selector-container">
+
+            <span className="model-selector-label">
+              Model
+            </span>
+
+            <select
+              className="model-selector"
+              value={selectedModel}
+              onChange={handleModelChange}
+              disabled={
+                loading ||
+                models.length === 0
+              }
+            >
+
+              {models.length === 0 && (
+                <option value="">
+                  No models
+                </option>
+              )}
+
+              {models.map((model) => (
+                <option
+                  key={model.name}
+                  value={model.name}
+                >
+                  {model.name}
+                  {model.size
+                    ? ` (${formatModelSize(
+                        model.size
+                      )})`
+                    : ""}
+                </option>
+              ))}
+
+            </select>
+
+          </div>
+
 
           {messages.length > 0 && (
             <button
@@ -332,11 +543,39 @@ function App() {
             </button>
           )}
 
-          <div className="status">
-            <span className="status-dot">
-            </span>
 
-            Local AI
+          <div className="service-status">
+
+            <div className="status">
+              <span
+                className={
+                  `status-dot ${
+                    backendOnline
+                      ? "online"
+                      : "offline"
+                  }`
+                }
+              >
+              </span>
+
+              Backend
+            </div>
+
+            <div className="status">
+              <span
+                className={
+                  `status-dot ${
+                    ollamaOnline
+                      ? "online"
+                      : "offline"
+                  }`
+                }
+              >
+              </span>
+
+              Ollama
+            </div>
+
           </div>
 
         </div>
@@ -346,7 +585,60 @@ function App() {
 
       <main className="chat">
 
-        {messages.length === 0 && (
+        {initializing && (
+          <div className="welcome">
+
+            <div className="logo">
+              D
+            </div>
+
+            <h2>
+              Starting Daedalus
+            </h2>
+
+            <p>
+              Checking local AI services...
+            </p>
+
+          </div>
+        )}
+
+
+        {!initializing &&
+          startupError &&
+          messages.length === 0 && (
+
+          <div className="welcome">
+
+            <div className="logo error-logo">
+              !
+            </div>
+
+            <h2>
+              Daedalus is not ready
+            </h2>
+
+            <p>
+              {startupError}
+            </p>
+
+            <button
+              className="retry-button"
+              onClick={
+                initializeDaedalus
+              }
+            >
+              Retry
+            </button>
+
+          </div>
+        )}
+
+
+        {!initializing &&
+          !startupError &&
+          messages.length === 0 && (
+
           <div className="welcome">
 
             <div className="logo">
@@ -393,23 +685,30 @@ function App() {
 
                     {message.role ===
                     "assistant" ? (
+
                       <MarkdownMessage
                         content={
                           message.content
                         }
                       />
+
                     ) : (
+
                       message.content
+
                     )}
+
 
                     {loading &&
                       index ===
                         messages.length - 1 &&
                       message.role ===
                         "assistant" && (
+
                         <span className="cursor">
                           ▋
                         </span>
+
                       )}
 
                   </div>
@@ -418,7 +717,8 @@ function App() {
               )
             )}
 
-            <div ref={bottomRef}></div>
+            <div ref={bottomRef}>
+            </div>
 
           </div>
         )}
@@ -438,8 +738,14 @@ function App() {
               )
             }
             onKeyDown={handleKeyDown}
-            placeholder="Ask Daedalus..."
-            disabled={loading}
+            placeholder={
+              ready
+                ? "Ask Daedalus..."
+                : "Daedalus is not ready..."
+            }
+            disabled={
+              loading || !ready
+            }
             rows={2}
           />
 
@@ -447,7 +753,8 @@ function App() {
             onClick={sendMessage}
             disabled={
               loading ||
-              !input.trim()
+              !input.trim() ||
+              !ready
             }
           >
             {loading
@@ -457,8 +764,20 @@ function App() {
 
         </div>
 
-        <div className="model-name">
-          {MODEL}
+
+        <div className="composer-info">
+
+          <span>
+            {selectedModel ||
+              "No model selected"}
+          </span>
+
+          <span>
+            Enter to send
+            {" · "}
+            Shift+Enter for newline
+          </span>
+
         </div>
 
       </div>
