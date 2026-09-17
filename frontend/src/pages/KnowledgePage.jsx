@@ -37,6 +37,17 @@ function formatBytes(bytes) {
 }
 
 
+function formatDate(value) {
+  if (!value) {
+    return "—";
+  }
+
+  return new Date(
+    value
+  ).toLocaleString();
+}
+
+
 function getErrorMessage(data) {
   if (
     typeof data?.detail === "string"
@@ -67,6 +78,16 @@ function KnowledgePage() {
   const [
     extractingId,
     setExtractingId,
+  ] = useState(null);
+
+  const [
+    chunkingId,
+    setChunkingId,
+  ] = useState(null);
+
+  const [
+    indexingId,
+    setIndexingId,
   ] = useState(null);
 
   const [
@@ -102,7 +123,9 @@ function KnowledgePage() {
   const [
     sourceType,
     setSourceType,
-  ] = useState("textbook");
+  ] = useState(
+    "textbook"
+  );
 
   const [
     authority,
@@ -168,7 +191,9 @@ function KnowledgePage() {
           "/admin/knowledge/sources"
         );
 
-      setSources(data);
+      setSources(
+        data
+      );
 
     } catch (loadError) {
       setError(
@@ -293,7 +318,9 @@ function KnowledgePage() {
         ]
       );
 
-      setShowUpload(false);
+      setShowUpload(
+        false
+      );
 
       setSuccess(
         `${source.title} uploaded successfully.`
@@ -352,6 +379,90 @@ function KnowledgePage() {
   }
 
 
+  async function chunkSource(
+    source
+  ) {
+    setChunkingId(
+      source.id
+    );
+
+    setError("");
+    setSuccess("");
+
+    try {
+      const updated =
+        await request(
+          `/admin/knowledge/sources/${source.id}/chunk`,
+          {
+            method: "POST",
+          }
+        );
+
+      replaceSource(
+        updated
+      );
+
+      setSuccess(
+        `${source.title} chunked successfully.`
+      );
+
+    } catch (chunkError) {
+      setError(
+        chunkError.message
+      );
+
+      await loadSources();
+
+    } finally {
+      setChunkingId(
+        null
+      );
+    }
+  }
+
+
+  async function indexSource(
+    source
+  ) {
+    setIndexingId(
+      source.id
+    );
+
+    setError("");
+    setSuccess("");
+
+    try {
+      const updated =
+        await request(
+          `/admin/knowledge/sources/${source.id}/index`,
+          {
+            method: "POST",
+          }
+        );
+
+      replaceSource(
+        updated
+      );
+
+      setSuccess(
+        `${source.title} indexed successfully.`
+      );
+
+    } catch (indexError) {
+      setError(
+        indexError.message
+      );
+
+      await loadSources();
+
+    } finally {
+      setIndexingId(
+        null
+      );
+    }
+  }
+
+
   async function toggleSource(
     source
   ) {
@@ -385,7 +496,8 @@ function KnowledgePage() {
     const confirmed =
       window.confirm(
         `Delete "${source.title}"? ` +
-        "The source PDF and extracted pages will be removed."
+        "The source PDF, extracted pages, chunks, " +
+        "and vector index will be removed."
       );
 
     if (!confirmed) {
@@ -420,6 +532,37 @@ function KnowledgePage() {
         deleteError.message
       );
     }
+  }
+
+
+  function isProcessing(
+    source
+  ) {
+    return (
+      extractingId === source.id ||
+      chunkingId === source.id ||
+      indexingId === source.id
+    );
+  }
+
+
+  function canChunk(
+    source
+  ) {
+    return (
+      source.page_count > 0 &&
+      !isProcessing(source)
+    );
+  }
+
+
+  function canIndex(
+    source
+  ) {
+    return (
+      source.chunk_count > 0 &&
+      !isProcessing(source)
+    );
   }
 
 
@@ -485,8 +628,8 @@ function KnowledgePage() {
           </h3>
 
           <p>
-            Upload a Windows Internals
-            textbook to begin building
+            Upload a textbook or technical
+            reference to begin building
             Daedalus&apos;s grounded
             knowledge base.
           </p>
@@ -629,6 +772,42 @@ function KnowledgePage() {
               </div>
 
 
+              {source.embedding_model && (
+
+                <div className="knowledge-embedding-model">
+
+                  <span>
+                    Embedding model
+                  </span>
+
+                  <strong>
+                    {source.embedding_model}
+                  </strong>
+
+                </div>
+
+              )}
+
+
+              {source.indexed_at && (
+
+                <div className="knowledge-embedding-model">
+
+                  <span>
+                    Last indexed
+                  </span>
+
+                  <strong>
+                    {formatDate(
+                      source.indexed_at
+                    )}
+                  </strong>
+
+                </div>
+
+              )}
+
+
               {source.error_message && (
 
                 <div className="knowledge-source-error">
@@ -656,8 +835,9 @@ function KnowledgePage() {
                     )
                   }
                   disabled={
-                    extractingId ===
-                    source.id
+                    isProcessing(
+                      source
+                    )
                   }
                 >
                   {extractingId ===
@@ -671,7 +851,55 @@ function KnowledgePage() {
 
                 <button
                   onClick={() =>
+                    chunkSource(
+                      source
+                    )
+                  }
+                  disabled={
+                    !canChunk(
+                      source
+                    )
+                  }
+                >
+                  {chunkingId ===
+                  source.id
+                    ? "Chunking..."
+                    : source.chunk_count > 0
+                      ? "Re-chunk"
+                      : "Chunk"}
+                </button>
+
+
+                <button
+                  onClick={() =>
+                    indexSource(
+                      source
+                    )
+                  }
+                  disabled={
+                    !canIndex(
+                      source
+                    )
+                  }
+                >
+                  {indexingId ===
+                  source.id
+                    ? "Indexing..."
+                    : source.status ===
+                        "ready"
+                      ? "Re-index"
+                      : "Index"}
+                </button>
+
+
+                <button
+                  onClick={() =>
                     toggleSource(
+                      source
+                    )
+                  }
+                  disabled={
+                    isProcessing(
                       source
                     )
                   }
@@ -686,6 +914,11 @@ function KnowledgePage() {
                   className="danger"
                   onClick={() =>
                     deleteSource(
+                      source
+                    )
+                  }
+                  disabled={
+                    isProcessing(
                       source
                     )
                   }
@@ -728,9 +961,13 @@ function KnowledgePage() {
               <button
                 className="modal-close"
                 onClick={() =>
-                  setShowUpload(false)
+                  setShowUpload(
+                    false
+                  )
                 }
-                disabled={uploading}
+                disabled={
+                  uploading
+                }
               >
                 ×
               </button>
@@ -921,9 +1158,13 @@ function KnowledgePage() {
                 <button
                   type="button"
                   onClick={() =>
-                    setShowUpload(false)
+                    setShowUpload(
+                      false
+                    )
                   }
-                  disabled={uploading}
+                  disabled={
+                    uploading
+                  }
                 >
                   Cancel
                 </button>

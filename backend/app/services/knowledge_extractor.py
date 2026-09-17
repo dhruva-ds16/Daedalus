@@ -7,8 +7,14 @@ import pymupdf
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from app.database.models import KnowledgeChunk
 from app.database.models import KnowledgePage
 from app.database.models import KnowledgeSource
+
+from app.services.knowledge_vector_store import (
+    KnowledgeVectorStoreError,
+    delete_source_vectors,
+)
 
 
 class KnowledgeExtractionError(Exception):
@@ -86,6 +92,50 @@ def extract_knowledge_source(
     document = None
 
     try:
+        # Any existing vector index represents
+        # old chunks and must be invalidated.
+        try:
+            delete_source_vectors(
+                source.id
+            )
+
+        except KnowledgeVectorStoreError as exc:
+            raise KnowledgeExtractionError(
+                "Unable to invalidate the existing "
+                f"vector index before extraction: {exc}"
+            ) from exc
+
+        # Old chunks are invalid as soon as the
+        # underlying extracted pages are rebuilt.
+        database.execute(
+            delete(
+                KnowledgeChunk
+            ).where(
+                KnowledgeChunk.source_id
+                == source.id
+            )
+        )
+
+        database.flush()
+
+        # Remove the old extracted pages.
+        database.execute(
+            delete(
+                KnowledgePage
+            ).where(
+                KnowledgePage.source_id
+                == source.id
+            )
+        )
+
+        database.flush()
+
+        source.chunk_count = 0
+        source.embedding_model = None
+        source.indexed_at = None
+
+        database.commit()
+
         document = pymupdf.open(
             str(file_path)
         )
@@ -104,17 +154,6 @@ def extract_knowledge_source(
                 "The PDF contains no pages."
             )
 
-        database.execute(
-            delete(
-                KnowledgePage
-            ).where(
-                KnowledgePage.source_id
-                == source.id
-            )
-        )
-
-        database.flush()
-
         extracted_pages = []
 
         for page_index in range(
@@ -132,16 +171,12 @@ def extract_knowledge_source(
                 raw_text
             )
 
-            page_number = (
-                page_index + 1
-            )
-
             extracted_pages.append(
                 KnowledgePage(
                     source_id=source.id,
 
                     page_number=(
-                        page_number
+                        page_index + 1
                     ),
 
                     text=text,
@@ -183,6 +218,12 @@ def extract_knowledge_source(
             page_count
         )
 
+        source.chunk_count = 0
+
+        source.embedding_model = None
+
+        source.indexed_at = None
+
         source.status = (
             "extracted"
         )
@@ -200,17 +241,19 @@ def extract_knowledge_source(
     except KnowledgeExtractionError as exc:
         database.rollback()
 
-        source = database.get(
+        refreshed = database.get(
             KnowledgeSource,
             source.id,
         )
 
-        if source is not None:
-            source.status = "failed"
+        if refreshed is not None:
+            refreshed.status = (
+                "failed"
+            )
 
-            source.error_message = str(
-                exc
-            )[:2000]
+            refreshed.error_message = (
+                str(exc)[:2000]
+            )
 
             database.commit()
 
@@ -219,17 +262,19 @@ def extract_knowledge_source(
     except Exception as exc:
         database.rollback()
 
-        source = database.get(
+        refreshed = database.get(
             KnowledgeSource,
             source.id,
         )
 
-        if source is not None:
-            source.status = "failed"
+        if refreshed is not None:
+            refreshed.status = (
+                "failed"
+            )
 
-            source.error_message = str(
-                exc
-            )[:2000]
+            refreshed.error_message = (
+                str(exc)[:2000]
+            )
 
             database.commit()
 

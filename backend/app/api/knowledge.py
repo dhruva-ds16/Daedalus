@@ -38,6 +38,22 @@ from app.services.knowledge_chunker import (
     chunk_knowledge_source,
 )
 
+from app.services.knowledge_indexer import (
+    KnowledgeIndexingError,
+    index_knowledge_source,
+)
+
+from app.services.knowledge_retriever import (
+    KnowledgeRetrievalError,
+    retrieve_knowledge,
+)
+
+from app.services.knowledge_vector_store import (
+    KnowledgeVectorStoreError,
+    count_source_vectors,
+    delete_source_vectors,
+)
+
 router = APIRouter(
     prefix="/admin/knowledge",
     tags=["Admin Knowledge Base"],
@@ -184,6 +200,71 @@ class KnowledgeChunkDetailResponse(
     KnowledgeChunkSummaryResponse
 ):
     text: str
+
+class KnowledgeIndexStatusResponse(
+    BaseModel
+):
+    source_id: int
+
+    status: str
+
+    chunk_count: int
+
+    indexed_vectors: int
+
+    embedding_model: str | None
+
+    indexed_at: datetime | None
+
+class KnowledgeSearchRequest(
+    BaseModel
+):
+    query: str
+
+    limit: int = 5
+
+    domain: str | None = None
+
+    source_id: int | None = None
+
+
+class KnowledgeSearchResultResponse(
+    BaseModel
+):
+    chunk_id: int
+    chunk_index: int
+
+    source_id: int
+    source_title: str
+
+    domain: str
+    source_type: str
+    authority: str
+    edition: str | None
+
+    page_start: int
+    page_end: int
+
+    section_hint: str | None
+
+    text: str
+
+    semantic_score: float
+    quality_score: float
+    authority_weight: float
+    final_score: float
+
+
+class KnowledgeSearchResponse(
+    BaseModel
+):
+    query: str
+
+    result_count: int
+
+    results: list[
+        KnowledgeSearchResultResponse
+    ]
 
 class MessageResponse(
     BaseModel
@@ -1031,6 +1112,228 @@ async def read_source_chunk(
     )
 
 @router.post(
+    "/sources/{source_id}/index",
+    response_model=(
+        KnowledgeSourceResponse
+    ),
+)
+async def index_source(
+    source_id: int,
+
+    database: Session = Depends(
+        get_db
+    ),
+
+    admin: User = Depends(
+        require_admin
+    ),
+):
+    source = get_source(
+        database=database,
+        source_id=source_id,
+    )
+
+    try:
+        indexed = (
+            await index_knowledge_source(
+                database=database,
+                source=source,
+            )
+        )
+
+    except KnowledgeIndexingError as exc:
+        raise HTTPException(
+            status_code=(
+                status
+                .HTTP_503_SERVICE_UNAVAILABLE
+            ),
+            detail=str(exc),
+        )
+
+    return serialize_source(
+        indexed
+    )
+
+
+@router.get(
+    "/sources/{source_id}/index-status",
+    response_model=(
+        KnowledgeIndexStatusResponse
+    ),
+)
+async def source_index_status(
+    source_id: int,
+
+    database: Session = Depends(
+        get_db
+    ),
+
+    admin: User = Depends(
+        require_admin
+    ),
+):
+    source = get_source(
+        database=database,
+        source_id=source_id,
+    )
+
+    try:
+        vector_count = (
+            count_source_vectors(
+                source.id
+            )
+        )
+
+    except KnowledgeVectorStoreError as exc:
+        raise HTTPException(
+            status_code=(
+                status
+                .HTTP_503_SERVICE_UNAVAILABLE
+            ),
+            detail=str(exc),
+        )
+
+    return KnowledgeIndexStatusResponse(
+        source_id=source.id,
+
+        status=source.status,
+
+        chunk_count=(
+            source.chunk_count
+        ),
+
+        indexed_vectors=(
+            vector_count
+        ),
+
+        embedding_model=(
+            source.embedding_model
+        ),
+
+        indexed_at=(
+            source.indexed_at
+        ),
+    )
+
+@router.post(
+    "/search",
+    response_model=(
+        KnowledgeSearchResponse
+    ),
+)
+async def search_knowledge(
+    request: KnowledgeSearchRequest,
+
+    database: Session = Depends(
+        get_db
+    ),
+
+    admin: User = Depends(
+        require_admin
+    ),
+):
+    try:
+        results = (
+            await retrieve_knowledge(
+                database=database,
+
+                query=request.query,
+
+                limit=request.limit,
+
+                domain=request.domain,
+
+                source_id=(
+                    request.source_id
+                ),
+            )
+        )
+
+    except KnowledgeRetrievalError as exc:
+        raise HTTPException(
+            status_code=(
+                status
+                .HTTP_503_SERVICE_UNAVAILABLE
+            ),
+            detail=str(exc),
+        )
+
+    return KnowledgeSearchResponse(
+        query=request.query,
+
+        result_count=len(
+            results
+        ),
+
+        results=[
+            KnowledgeSearchResultResponse(
+                chunk_id=(
+                    result.chunk_id
+                ),
+
+                chunk_index=(
+                    result.chunk_index
+                ),
+
+                source_id=(
+                    result.source_id
+                ),
+
+                source_title=(
+                    result.source_title
+                ),
+
+                domain=(
+                    result.domain
+                ),
+
+                source_type=(
+                    result.source_type
+                ),
+
+                authority=(
+                    result.authority
+                ),
+
+                edition=(
+                    result.edition
+                ),
+
+                page_start=(
+                    result.page_start
+                ),
+
+                page_end=(
+                    result.page_end
+                ),
+
+                section_hint=(
+                    result.section_hint
+                ),
+
+                text=result.text,
+
+                semantic_score=(
+                    result.semantic_score
+                ),
+
+                quality_score=(
+                    result.quality_score
+                ),
+
+                authority_weight=(
+                    result.authority_weight
+                ),
+
+                final_score=(
+                    result.final_score
+                ),
+            )
+            for result in results
+        ],
+    )
+
+@router.post(
     "/sources/{source_id}/toggle",
     response_model=(
         KnowledgeSourceResponse
@@ -1092,6 +1395,24 @@ async def delete_source(
     )
 
     title = source.title
+
+    try:
+        delete_source_vectors(
+            source.id
+    )
+
+    except KnowledgeVectorStoreError as exc:
+        raise HTTPException(
+            status_code=(
+                status
+                .HTTP_503_SERVICE_UNAVAILABLE
+            ),
+            detail=(
+                "Unable to remove the "
+                "source from the vector index: "
+                f"{exc}"
+            ),
+        )
 
     database.execute(
         delete(

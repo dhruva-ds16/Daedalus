@@ -11,11 +11,16 @@ from app.database.models import KnowledgeChunk
 from app.database.models import KnowledgePage
 from app.database.models import KnowledgeSource
 
+from app.services.knowledge_vector_store import (
+    KnowledgeVectorStoreError,
+    delete_source_vectors,
+)
+
 
 TARGET_WORDS = 450
 MAX_WORDS = 650
 MIN_WORDS = 80
-OVERLAP_WORDS = 70
+OVERLAP_WORDS = 40
 
 
 class KnowledgeChunkingError(Exception):
@@ -62,7 +67,9 @@ def control_character_ratio(
     suspicious = 0
 
     for character in text:
-        code = ord(character)
+        code = ord(
+            character
+        )
 
         if (
             code < 32
@@ -71,7 +78,10 @@ def control_character_ratio(
         ):
             suspicious += 1
 
-    return suspicious / len(text)
+    return (
+        suspicious
+        / len(text)
+    )
 
 
 def dotted_leader_ratio(
@@ -79,7 +89,8 @@ def dotted_leader_ratio(
 ) -> float:
     lines = [
         line.strip()
-        for line in text.splitlines()
+        for line
+        in text.splitlines()
         if line.strip()
     ]
 
@@ -95,7 +106,10 @@ def dotted_leader_ratio(
         ):
             matches += 1
 
-    return matches / len(lines)
+    return (
+        matches
+        / len(lines)
+    )
 
 
 def page_reference_ratio(
@@ -103,7 +117,8 @@ def page_reference_ratio(
 ) -> float:
     lines = [
         line.strip()
-        for line in text.splitlines()
+        for line
+        in text.splitlines()
         if line.strip()
     ]
 
@@ -119,7 +134,10 @@ def page_reference_ratio(
         ):
             matches += 1
 
-    return matches / len(lines)
+    return (
+        matches
+        / len(lines)
+    )
 
 
 def detect_section_hint(
@@ -127,7 +145,8 @@ def detect_section_hint(
 ) -> str | None:
     lines = [
         line.strip()
-        for line in text.splitlines()
+        for line
+        in text.splitlines()
         if line.strip()
     ]
 
@@ -175,26 +194,48 @@ def analyze_page(
 
     if not text:
         return PageAnalysis(
-            page_number=page.page_number,
-            content_type="low_text",
+            page_number=(
+                page.page_number
+            ),
+
+            content_type=(
+                "low_text"
+            ),
+
             quality_score=0.0,
+
             retrieval_enabled=False,
+
             section_hint=None,
         )
 
-    word_count = page.word_count
+    word_count = (
+        page.word_count
+    )
 
     if word_count < 20:
         return PageAnalysis(
-            page_number=page.page_number,
-            content_type="low_text",
+            page_number=(
+                page.page_number
+            ),
+
+            content_type=(
+                "low_text"
+            ),
+
             quality_score=0.4,
+
             retrieval_enabled=False,
-            section_hint=detect_section_hint(
-                text
+
+            section_hint=(
+                detect_section_hint(
+                    text
+                )
             ),
         )
 
+    # Quality is metadata, not a hard
+    # retrieval gate.
     controls = (
         control_character_ratio(
             text
@@ -217,11 +258,21 @@ def analyze_page(
 
     if dotted >= 0.20:
         return PageAnalysis(
-            page_number=page.page_number,
+            page_number=(
+                page.page_number
+            ),
+
             content_type="toc",
-            quality_score=quality_score,
+
+            quality_score=(
+                quality_score
+            ),
+
             retrieval_enabled=False,
-            section_hint="Table of Contents",
+
+            section_hint=(
+                "Table of Contents"
+            ),
         )
 
     references = (
@@ -236,10 +287,18 @@ def analyze_page(
         and references >= 0.20
     ):
         return PageAnalysis(
-            page_number=page.page_number,
+            page_number=(
+                page.page_number
+            ),
+
             content_type="index",
-            quality_score=quality_score,
+
+            quality_score=(
+                quality_score
+            ),
+
             retrieval_enabled=False,
+
             section_hint="Index",
         )
 
@@ -248,22 +307,44 @@ def analyze_page(
         and word_count < 350
     ):
         return PageAnalysis(
-            page_number=page.page_number,
-            content_type="front_matter",
-            quality_score=quality_score,
+            page_number=(
+                page.page_number
+            ),
+
+            content_type=(
+                "front_matter"
+            ),
+
+            quality_score=(
+                quality_score
+            ),
+
             retrieval_enabled=False,
-            section_hint=detect_section_hint(
-                text
+
+            section_hint=(
+                detect_section_hint(
+                    text
+                )
             ),
         )
 
     return PageAnalysis(
-        page_number=page.page_number,
+        page_number=(
+            page.page_number
+        ),
+
         content_type="content",
-        quality_score=quality_score,
+
+        quality_score=(
+            quality_score
+        ),
+
         retrieval_enabled=True,
-        section_hint=detect_section_hint(
-            text
+
+        section_hint=(
+            detect_section_hint(
+                text
+            )
         ),
     )
 
@@ -293,7 +374,8 @@ def split_paragraphs(
     if len(paragraphs) <= 1:
         paragraphs = [
             line.strip()
-            for line in text.splitlines()
+            for line
+            in text.splitlines()
             if line.strip()
         ]
 
@@ -306,7 +388,9 @@ def split_large_paragraph(
     words = paragraph.split()
 
     if len(words) <= MAX_WORDS:
-        return [paragraph]
+        return [
+            paragraph
+        ]
 
     pieces = []
 
@@ -368,30 +452,39 @@ def build_page_chunks(
             + paragraph_words
             > MAX_WORDS
         ):
-            text = "\n\n".join(
-                current
+            chunk_text = (
+                "\n\n".join(
+                    current
+                )
             )
 
             chunks.append(
                 {
-                    "text": text,
+                    "text":
+                        chunk_text,
+
                     "page_start":
                         page.page_number,
+
                     "page_end":
                         page.page_number,
+
                     "content_type":
                         analysis.content_type,
+
                     "quality_score":
                         analysis.quality_score,
+
                     "retrieval_enabled":
                         analysis.retrieval_enabled,
+
                     "section_hint":
                         analysis.section_hint,
                 }
             )
 
             overlap_words = (
-                text.split()[
+                chunk_text.split()[
                     -OVERLAP_WORDS:
                 ]
             )
@@ -421,30 +514,39 @@ def build_page_chunks(
             current_words
             >= TARGET_WORDS
         ):
-            text = "\n\n".join(
-                current
+            chunk_text = (
+                "\n\n".join(
+                    current
+                )
             )
 
             chunks.append(
                 {
-                    "text": text,
+                    "text":
+                        chunk_text,
+
                     "page_start":
                         page.page_number,
+
                     "page_end":
                         page.page_number,
+
                     "content_type":
                         analysis.content_type,
+
                     "quality_score":
                         analysis.quality_score,
+
                     "retrieval_enabled":
                         analysis.retrieval_enabled,
+
                     "section_hint":
                         analysis.section_hint,
                 }
             )
 
             overlap_words = (
-                text.split()[
+                chunk_text.split()[
                     -OVERLAP_WORDS:
                 ]
             )
@@ -463,28 +565,39 @@ def build_page_chunks(
             )
 
     if current:
-        text = "\n\n".join(
-            current
+        chunk_text = (
+            "\n\n".join(
+                current
+            )
         )
 
         if (
-            count_words(text)
+            count_words(
+                chunk_text
+            )
             >= MIN_WORDS
             or not chunks
         ):
             chunks.append(
                 {
-                    "text": text,
+                    "text":
+                        chunk_text,
+
                     "page_start":
                         page.page_number,
+
                     "page_end":
                         page.page_number,
+
                     "content_type":
                         analysis.content_type,
+
                     "quality_score":
                         analysis.quality_score,
+
                     "retrieval_enabled":
                         analysis.retrieval_enabled,
+
                     "section_hint":
                         analysis.section_hint,
                 }
@@ -492,7 +605,8 @@ def build_page_chunks(
 
         elif chunks:
             chunks[-1]["text"] += (
-                "\n\n" + text
+                "\n\n"
+                + chunk_text
             )
 
     return chunks
@@ -514,8 +628,23 @@ def chunk_knowledge_source(
     database.commit()
 
     try:
+        # Existing vectors are based on the
+        # previous chunk set and are now stale.
+        try:
+            delete_source_vectors(
+                source.id
+            )
+
+        except KnowledgeVectorStoreError as exc:
+            raise KnowledgeChunkingError(
+                "Unable to invalidate the "
+                f"existing vector index: {exc}"
+            ) from exc
+
         statement = (
-            select(KnowledgePage)
+            select(
+                KnowledgePage
+            )
             .where(
                 KnowledgePage.source_id
                 == source.id
@@ -545,6 +674,12 @@ def chunk_knowledge_source(
 
         database.flush()
 
+        source.chunk_count = 0
+        source.embedding_model = None
+        source.indexed_at = None
+
+        database.flush()
+
         chunk_index = 1
 
         pending = []
@@ -564,7 +699,9 @@ def chunk_knowledge_source(
 
             for item in page_chunks:
                 chunk_text = (
-                    item["text"].strip()
+                    item[
+                        "text"
+                    ].strip()
                 )
 
                 if not chunk_text:
@@ -572,7 +709,9 @@ def chunk_knowledge_source(
 
                 pending.append(
                     KnowledgeChunk(
-                        source_id=source.id,
+                        source_id=(
+                            source.id
+                        ),
 
                         chunk_index=(
                             chunk_index
@@ -602,7 +741,9 @@ def chunk_knowledge_source(
                             ]
                         ),
 
-                        text=chunk_text,
+                        text=(
+                            chunk_text
+                        ),
 
                         character_count=len(
                             chunk_text
@@ -638,7 +779,9 @@ def chunk_knowledge_source(
 
                 chunk_index += 1
 
-                if len(pending) >= 100:
+                if len(
+                    pending
+                ) >= 100:
                     database.add_all(
                         pending
                     )
@@ -657,6 +800,10 @@ def chunk_knowledge_source(
         source.chunk_count = (
             chunk_index - 1
         )
+
+        source.embedding_model = None
+
+        source.indexed_at = None
 
         source.status = "chunked"
 

@@ -3142,3 +3142,41 @@ input[type="file"] {
   font-size: 13px;
   line-height: 1.5;
 }
+
+
+.knowledge-embedding-model {
+  margin-top: 18px;
+
+  padding-top: 16px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  border-top:
+    1px solid
+    var(--border-subtle);
+}
+
+.knowledge-embedding-model span {
+  color: var(--text-muted);
+
+  font-size: 11px;
+
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.knowledge-embedding-model strong {
+  overflow: hidden;
+
+  color: var(--text-secondary);
+
+  font-size: 13px;
+  font-weight: 600;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
