@@ -54,28 +54,42 @@ def build_planner_prompt(
     question_number: int,
     max_questions: int,
     previous_evidence: list[dict],
+    rejected_candidates: list[dict],
 ) -> str:
     evidence_json = json.dumps(
         previous_evidence,
         indent=2,
     )
 
+    rejected_json = json.dumps(
+        rejected_candidates,
+        indent=2,
+    )
+
+    remaining = (
+        max_questions
+        - question_number
+        + 1
+    )
+
     return f"""
 You are the diagnostic assessment planner for Daedalus,
 an adaptive tutor for Rust programming and Windows Internals.
 
-Your task is to decide the SINGLE most useful diagnostic
+Your task is to choose the SINGLE most useful diagnostic
 question to ask next.
 
-You control the pedagogical decision:
-- what concept to test
-- what difficulty to use
-- what question to ask
-- what evidence a strong answer should contain
+You determine:
+- what concept should be tested
+- the appropriate difficulty
+- the question itself
+- what evidence a strong answer may contain
+- hidden evaluator guidance
 
-You are NOT generating a curriculum yet.
-You are diagnosing the learner so a personalized curriculum
-can be created after the assessment.
+You are NOT generating the learner's curriculum yet.
+
+Your goal is to collect enough reliable evidence that a
+personalized curriculum can be generated after the assessment.
 
 PROGRAM
 
@@ -96,48 +110,98 @@ Overall learning goal:
 Preferred explanation depth:
 {preferred_depth}
 
-ASSESSMENT
+ASSESSMENT STATE
 
-Next question number:
+Next question:
 {question_number}
 
 Maximum questions:
 {max_questions}
 
-PREVIOUS ASSESSMENT EVIDENCE
+Question opportunities remaining including this one:
+{remaining}
+
+PREVIOUS EVIDENCE
 
 {evidence_json}
 
-PLANNING PRINCIPLES
+REJECTED CANDIDATES FROM THIS PLANNING ATTEMPT
 
-- Determine useful diagnostic coverage yourself.
-- Do not rely on a predefined topic list.
-- Use previous evidence to decide what should be tested next.
-- Avoid repeatedly testing knowledge already demonstrated strongly.
-- Probe uncertain or weak areas when doing so provides useful
-  diagnostic information.
-- Maintain reasonable breadth across the requested subject.
-- Earlier questions should establish broad foundations.
-- Later questions may probe deeper based on demonstrated ability.
-- Increase difficulty when previous evidence supports it.
-- Reduce difficulty when the learner appears to lack prerequisite
-  understanding.
+{rejected_json}
+
+DIAGNOSTIC STRATEGY
+
+You must decide appropriate subject coverage yourself.
+There is no predefined topic list.
+
+Use the limited question budget intelligently.
+
+Balance BREADTH and DEPTH:
+
+- Early in the assessment, prefer broad diagnostic coverage
+  across materially different areas of the subject.
+- Do not repeatedly test the same conceptual neighborhood
+  simply because previous evidence exists there.
+- Strong evidence usually means another basic question on the
+  same topic has low diagnostic value.
+- Weak evidence may justify ONE useful prerequisite or
+  clarification probe when it materially improves diagnosis.
+- Repeatedly asking minor variations of the same concept wastes
+  the assessment budget.
+- As the assessment progresses, deepen areas where uncertainty
+  remains or where advanced knowledge needs confirmation.
+- Consider what important areas remain unknown.
+- Use the remaining question budget to produce a useful overall
+  knowledge estimate rather than exhaustive coverage.
+
+DIFFICULTY ADAPTATION
+
+- Increase difficulty when demonstrated knowledge supports it.
+- Reduce difficulty when prerequisite understanding appears weak.
 - Do not assume knowledge that has not been demonstrated.
-- For an integrated program, assess both conceptual Windows
-  understanding and the learner's ability to connect it to Rust.
-- Prefer understanding and reasoning over trivia or memorization.
-- Ask ONE focused question.
+- Difficulty must reflect the actual cognitive demands of the
+  question, not merely the technical vocabulary used.
+
+INTEGRATED PROGRAMS
+
+For an integrated Windows + Rust program:
+
+- Diagnose both Windows understanding and Rust understanding.
+- Also diagnose the learner's ability to connect the two.
+- Do NOT force every question to combine Windows and Rust.
+- Some questions may focus primarily on Windows.
+- Some may focus primarily on Rust.
+- Some should test the integration between them.
+- Avoid repeatedly asking variants of resource lifetime,
+  handles, ownership, or borrowing if those areas have already
+  been adequately sampled.
+
+QUESTION QUALITY
+
+- Ask ONE focused diagnostic question.
+- Prefer reasoning and mental models over trivia.
 - Do not provide the answer.
-- Do not teach the learner inside the question.
+- Do not teach inside the question.
 - Do not greet the learner.
 - Do not use multiple choice.
+- Avoid false premises.
+- Avoid architecture-specific claims presented as universal facts.
+- Avoid outdated assumptions presented as general modern behavior.
 - A short code snippet is allowed when diagnostically useful.
-- The question should normally be answerable in a few paragraphs
-  or less.
+- The learner should normally be able to answer in a few
+  paragraphs or less.
+
+REJECTED CANDIDATES
+
+If rejected_candidates is non-empty:
+- Do not regenerate substantially the same candidate.
+- Read the validator issues and correct them.
+- Select another concept when the rejection indicates the
+  previous concept framing was problematic.
 
 DIFFICULTY
 
-difficulty must be exactly one of:
+Use exactly one:
 
 beginner
 intermediate
@@ -156,8 +220,8 @@ Required schema:
   "expected_topics": [
     "important idea a strong answer may demonstrate"
   ],
-  "evaluator_notes": "hidden guidance for evaluating the answer",
-  "selection_reason": "short internal explanation of why this is the best next diagnostic question"
+  "evaluator_notes": "hidden technically accurate grading guidance",
+  "selection_reason": "internal explanation of why this diagnostic probe is useful now"
 }}
 """.strip()
 
@@ -215,7 +279,13 @@ async def plan_assessment_question(
     question_number: int,
     max_questions: int,
     previous_evidence: list[dict],
+    rejected_candidates: list[dict] | None = None,
 ) -> PlannedQuestion:
+    rejected_candidates = (
+        rejected_candidates
+        or []
+    )
+
     prompt = build_planner_prompt(
         program_type=program_type,
         program_goal=program_goal,
@@ -225,6 +295,7 @@ async def plan_assessment_question(
         question_number=question_number,
         max_questions=max_questions,
         previous_evidence=previous_evidence,
+        rejected_candidates=rejected_candidates,
     )
 
     payload = {
@@ -271,10 +342,10 @@ async def plan_assessment_question(
     content = (
         data.get(
             "message",
-            {}
+            {},
         ).get(
             "content",
-            ""
+            "",
         )
     )
 

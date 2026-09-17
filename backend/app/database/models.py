@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from sqlalchemy import BigInteger
 from sqlalchemy import Boolean
 from sqlalchemy import DateTime
 from sqlalchemy import Float
@@ -488,4 +489,290 @@ class AssessmentQuestion(Base):
         "AssessmentSession"
     ] = relationship(
         back_populates="questions"
+    )
+
+class KnowledgeSource(Base):
+    __tablename__ = "knowledge_sources"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    uploaded_by_user_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "users.id",
+            ondelete="RESTRICT",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    title: Mapped[str] = mapped_column(
+        String(300),
+        nullable=False,
+    )
+
+    original_filename: Mapped[str] = mapped_column(
+        String(500),
+        nullable=False,
+    )
+
+    stored_filename: Mapped[str] = mapped_column(
+        String(100),
+        unique=True,
+        nullable=False,
+    )
+
+    file_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    mime_type: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    file_size: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+    )
+
+    file_hash: Mapped[str] = mapped_column(
+        String(64),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+
+    domain: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    source_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    authority: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+    )
+
+    edition: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    notes: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default="uploaded",
+        nullable=False,
+    )
+
+    enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
+    file_path: Mapped[str] = mapped_column(
+        String(1000),
+        nullable=False,
+    )
+
+    page_count: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    chunk_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
+    embedding_model: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+    )
+
+    error_message: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    indexed_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+class KnowledgePage(Base):
+    __tablename__ = "knowledge_pages"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id",
+            "page_number",
+            name="uq_knowledge_source_page",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "knowledge_sources.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    page_number: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    text: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    character_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    word_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    has_text: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+class KnowledgeChunk(Base):
+    __tablename__ = "knowledge_chunks"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_id",
+            "chunk_index",
+            name="uq_knowledge_source_chunk",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+    )
+
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "knowledge_sources.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    chunk_index: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    page_start: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    page_end: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    content_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+    )
+
+    section_hint: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
+    text: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    character_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    word_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    quality_score: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    retrieval_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
+    text_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        index=True,
+    )
+
+    vector_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
     )

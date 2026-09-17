@@ -34,7 +34,10 @@ function formatDuration(milliseconds) {
 }
 
 
-function TutorApp() {
+function TutorApp({
+  selectedModel,
+  onModelChange,
+}) {
   const [input, setInput] =
     useState("");
 
@@ -46,11 +49,6 @@ function TutorApp() {
 
   const [models, setModels] =
     useState([]);
-
-  const [
-    selectedModel,
-    setSelectedModel,
-  ] = useState("");
 
   const [
     backendOnline,
@@ -199,17 +197,23 @@ function TutorApp() {
             model.name === saved
         );
 
-      const model =
-        saved && exists
-          ? saved
-          : available[0].name;
+      let model =
+        selectedModel;
 
-      setSelectedModel(model);
+      if (
+        !model ||
+        !available.some(
+          (item) =>
+            item.name === model
+        )
+      ) {
+        model =
+          saved && exists
+            ? saved
+            : available[0].name;
+      }
 
-      localStorage.setItem(
-        "daedalus-selected-model",
-        model
-      );
+      onModelChange(model);
 
     } catch {
       setStartupError(
@@ -239,12 +243,7 @@ function TutorApp() {
       }
     }
 
-    setSelectedModel(model);
-
-    localStorage.setItem(
-      "daedalus-selected-model",
-      model
-    );
+    onModelChange(model);
 
     setMessages([]);
     setCurrentMetrics(null);
@@ -327,20 +326,17 @@ function TutorApp() {
           }
         );
 
-
       if (!response.ok) {
         throw new Error(
           `HTTP ${response.status}`
         );
       }
 
-
       if (!response.body) {
         throw new Error(
           "Streaming response is unavailable."
         );
       }
-
 
       const reader =
         response.body.getReader();
@@ -389,7 +385,6 @@ function TutorApp() {
             continue;
           }
 
-
           if (
             event.type === "token"
           ) {
@@ -427,7 +422,6 @@ function TutorApp() {
             );
           }
 
-
           if (
             event.type ===
             "metrics"
@@ -436,7 +430,6 @@ function TutorApp() {
               event.metrics
             );
           }
-
 
           if (
             event.type === "error"
@@ -449,7 +442,6 @@ function TutorApp() {
       }
 
     } catch (error) {
-
       if (
         error.name ===
         "AbortError"

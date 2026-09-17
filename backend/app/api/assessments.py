@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from pydantic import Field
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
@@ -35,6 +36,11 @@ from app.services.assessment_planner import (
     plan_assessment_question,
 )
 
+from app.services.assessment_validator import (
+    AssessmentValidationError,
+    validate_assessment_question,
+)
+
 
 router = APIRouter(
     prefix="/assessments",
@@ -56,9 +62,7 @@ Difficulty = Literal[
 ]
 
 
-# ==========================================================
-# REQUEST / RESPONSE MODELS
-# ==========================================================
+MAX_PLANNING_ATTEMPTS = 3
 
 
 class StartAssessmentRequest(BaseModel):
@@ -94,16 +98,12 @@ class AssessmentResponse(BaseModel):
     id: int
     program_id: int
     program_type: str
-
     status: AssessmentStatus
-
     current_question: int
     questions_answered: int
     max_questions: int
-
     started_at: datetime
     completed_at: datetime | None
-
     created_at: datetime
     updated_at: datetime
 
@@ -111,46 +111,30 @@ class AssessmentResponse(BaseModel):
 class QuestionResponse(BaseModel):
     id: int
     assessment_id: int
-
     sequence_number: int
-
     concept: str
     difficulty: Difficulty
-
     question_text: str
-
     answered: bool
-
     created_at: datetime
 
 
 class AnswerEvaluationResponse(BaseModel):
     question_id: int
-
     concept: str
     difficulty: Difficulty
-
     score: float
     classification: str
-
     demonstrated: list[str]
     gaps: list[str]
-
     feedback: str
-
     questions_answered: int
     max_questions: int
-
     assessment_complete: bool
 
 
 class MessageResponse(BaseModel):
     message: str
-
-
-# ==========================================================
-# OWNERSHIP HELPERS
-# ==========================================================
 
 
 def get_owned_program(
@@ -247,11 +231,6 @@ def get_owned_question(
     return question
 
 
-# ==========================================================
-# PROFILE / STATE HELPERS
-# ==========================================================
-
-
 def get_learner_profile(
     database: Session,
     user: User,
@@ -275,10 +254,24 @@ def get_learner_profile(
     )
 
     database.add(profile)
-    database.commit()
-    database.refresh(profile)
 
-    return profile
+    try:
+        database.commit()
+        database.refresh(profile)
+
+        return profile
+
+    except IntegrityError:
+        database.rollback()
+
+        profile = database.scalar(
+            statement
+        )
+
+        if profile is None:
+            raise
+
+        return profile
 
 
 def find_active_assessment(
@@ -293,6 +286,50 @@ def find_active_assessment(
         )
         .order_by(
             AssessmentSession.created_at.desc()
+        )
+    )
+
+    return database.scalar(
+        statement
+    )
+
+
+def find_unanswered_question(
+    database: Session,
+    assessment_id: int,
+) -> AssessmentQuestion | None:
+    statement = (
+        select(AssessmentQuestion)
+        .where(
+            AssessmentQuestion.assessment_id
+            == assessment_id,
+
+            AssessmentQuestion.learner_answer
+            .is_(None),
+        )
+        .order_by(
+            AssessmentQuestion.sequence_number
+        )
+    )
+
+    return database.scalar(
+        statement
+    )
+
+
+def find_question_by_sequence(
+    database: Session,
+    assessment_id: int,
+    sequence_number: int,
+) -> AssessmentQuestion | None:
+    statement = (
+        select(AssessmentQuestion)
+        .where(
+            AssessmentQuestion.assessment_id
+            == assessment_id,
+
+            AssessmentQuestion.sequence_number
+            == sequence_number,
         )
     )
 
@@ -335,11 +372,6 @@ def serialize_question(
         ),
         created_at=question.created_at,
     )
-
-
-# ==========================================================
-# EVIDENCE BUILDING
-# ==========================================================
 
 
 def build_previous_evidence(
@@ -409,11 +441,6 @@ def build_previous_evidence(
     return evidence_items
 
 
-# ==========================================================
-# START / RESUME
-# ==========================================================
-
-
 @router.post(
     "",
     response_model=AssessmentResponse,
@@ -421,9 +448,7 @@ def build_previous_evidence(
 )
 async def start_assessment(
     request: StartAssessmentRequest,
-    database: Session = Depends(
-        get_db
-    ),
+    database: Session = Depends(get_db),
     current_user: User = Depends(
         get_current_user
     ),
@@ -466,18 +491,31 @@ async def start_assessment(
     )
 
     database.add(assessment)
-    database.commit()
-    database.refresh(assessment)
+
+    try:
+        database.commit()
+        database.refresh(assessment)
+
+    except IntegrityError:
+        database.rollback()
+
+        existing = find_active_assessment(
+            database=database,
+            program_id=program.id,
+        )
+
+        if existing is None:
+            raise
+
+        return serialize_assessment(
+            assessment=existing,
+            program=program,
+        )
 
     return serialize_assessment(
         assessment=assessment,
         program=program,
     )
-
-
-# ==========================================================
-# CURRENT ASSESSMENT
-# ==========================================================
 
 
 @router.get(
@@ -486,9 +524,7 @@ async def start_assessment(
 )
 async def current_assessment(
     program_id: int,
-    database: Session = Depends(
-        get_db
-    ),
+    database: Session = Depends(get_db),
     current_user: User = Depends(
         get_current_user
     ),
@@ -513,20 +549,13 @@ async def current_assessment(
     )
 
 
-# ==========================================================
-# READ ASSESSMENT
-# ==========================================================
-
-
 @router.get(
     "/{assessment_id}",
     response_model=AssessmentResponse,
 )
 async def read_assessment(
     assessment_id: int,
-    database: Session = Depends(
-        get_db
-    ),
+    database: Session = Depends(get_db),
     current_user: User = Depends(
         get_current_user
     ),
@@ -543,11 +572,6 @@ async def read_assessment(
     )
 
 
-# ==========================================================
-# PLAN NEXT QUESTION
-# ==========================================================
-
-
 @router.post(
     "/{assessment_id}/questions",
     response_model=QuestionResponse,
@@ -556,9 +580,7 @@ async def read_assessment(
 async def plan_next_question(
     assessment_id: int,
     request: PlanQuestionRequest,
-    database: Session = Depends(
-        get_db
-    ),
+    database: Session = Depends(get_db),
     current_user: User = Depends(
         get_current_user
     ),
@@ -569,28 +591,20 @@ async def plan_next_question(
         assessment_id=assessment_id,
     )
 
-    if (
-        assessment.status
-        != "in_progress"
-    ):
+    if assessment.status != "in_progress":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Assessment is not in progress.",
         )
 
-    unanswered = next(
-        (
-            question
-            for question
-            in assessment.questions
-            if question.learner_answer is None
-        ),
-        None,
+    existing = find_unanswered_question(
+        database=database,
+        assessment_id=assessment.id,
     )
 
-    if unanswered is not None:
+    if existing is not None:
         return serialize_question(
-            unanswered
+            existing
         )
 
     if (
@@ -619,64 +633,254 @@ async def plan_next_question(
     )
 
     question_number = (
-        len(assessment.questions)
+        assessment.questions_answered
         + 1
     )
 
-    try:
-        planned = (
-            await plan_assessment_question(
-                model=request.model,
-                program_type=(
-                    assessment.program.program_type
-                ),
-                program_goal=(
-                    assessment.program.goal
-                ),
-                learner_experience=(
-                    profile.programming_experience
-                ),
-                learner_goal=(
-                    profile.learning_goal
-                ),
-                preferred_depth=(
-                    profile.preferred_depth
-                ),
-                question_number=(
-                    question_number
-                ),
-                max_questions=(
-                    assessment.max_questions
-                ),
-                previous_evidence=(
-                    previous_evidence
-                ),
-            )
+    rejected_candidates = []
+
+    accepted_plan = None
+    accepted_validation = None
+
+    for attempt in range(
+        1,
+        MAX_PLANNING_ATTEMPTS + 1,
+    ):
+        existing = find_unanswered_question(
+            database=database,
+            assessment_id=assessment.id,
         )
 
-    except AssessmentPlanningError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
+        if existing is not None:
+            return serialize_question(
+                existing
+            )
+
+        try:
+            planned = (
+                await plan_assessment_question(
+                    model=request.model,
+
+                    program_type=(
+                        assessment
+                        .program
+                        .program_type
+                    ),
+
+                    program_goal=(
+                        assessment
+                        .program
+                        .goal
+                    ),
+
+                    learner_experience=(
+                        profile
+                        .programming_experience
+                    ),
+
+                    learner_goal=(
+                        profile
+                        .learning_goal
+                    ),
+
+                    preferred_depth=(
+                        profile
+                        .preferred_depth
+                    ),
+
+                    question_number=(
+                        question_number
+                    ),
+
+                    max_questions=(
+                        assessment
+                        .max_questions
+                    ),
+
+                    previous_evidence=(
+                        previous_evidence
+                    ),
+
+                    rejected_candidates=(
+                        rejected_candidates
+                    ),
+                )
+            )
+
+        except AssessmentPlanningError as exc:
+            raise HTTPException(
+                status_code=(
+                    status
+                    .HTTP_503_SERVICE_UNAVAILABLE
+                ),
+                detail=str(exc),
+            )
+
+        try:
+            validation = (
+                await validate_assessment_question(
+                    model=request.model,
+
+                    program_type=(
+                        assessment
+                        .program
+                        .program_type
+                    ),
+
+                    concept=(
+                        planned.concept
+                    ),
+
+                    difficulty=(
+                        planned.difficulty
+                    ),
+
+                    question_text=(
+                        planned.question_text
+                    ),
+
+                    expected_topics=(
+                        planned.expected_topics
+                    ),
+
+                    evaluator_notes=(
+                        planned.evaluator_notes
+                    ),
+                )
+            )
+
+        except AssessmentValidationError as exc:
+            raise HTTPException(
+                status_code=(
+                    status
+                    .HTTP_503_SERVICE_UNAVAILABLE
+                ),
+                detail=str(exc),
+            )
+
+        if validation.approved:
+            accepted_plan = planned
+            accepted_validation = validation
+            break
+
+        rejected_candidates.append(
+            {
+                "attempt": attempt,
+
+                "concept":
+                    planned.concept,
+
+                "difficulty":
+                    planned.difficulty,
+
+                "question_text":
+                    planned.question_text,
+
+                "issues":
+                    validation.issues,
+
+                "rejection_reason":
+                    validation.rejection_reason,
+            }
         )
+
+    if (
+        accepted_plan is None
+        or accepted_validation is None
+    ):
+        raise HTTPException(
+            status_code=(
+                status
+                .HTTP_503_SERVICE_UNAVAILABLE
+            ),
+            detail=(
+                "Daedalus could not produce "
+                "a sufficiently reliable assessment "
+                "question after multiple attempts."
+            ),
+        )
+
+    existing = find_unanswered_question(
+        database=database,
+        assessment_id=assessment.id,
+    )
+
+    if existing is not None:
+        return serialize_question(
+            existing
+        )
+
+    existing_sequence = (
+        find_question_by_sequence(
+            database=database,
+            assessment_id=assessment.id,
+            sequence_number=question_number,
+        )
+    )
+
+    if existing_sequence is not None:
+        return serialize_question(
+            existing_sequence
+        )
+
+    validation_metadata = {
+        "approved":
+            accepted_validation.approved,
+
+        "factual_score":
+            accepted_validation.factual_score,
+
+        "clarity_score":
+            accepted_validation.clarity_score,
+
+        "rubric_score":
+            accepted_validation.rubric_score,
+
+        "difficulty_score":
+            accepted_validation.difficulty_score,
+
+        "issues":
+            accepted_validation.issues,
+    }
 
     planner_metadata = {
         "selection_reason":
-            planned.selection_reason,
+            accepted_plan.selection_reason,
+
+        "validation":
+            validation_metadata,
+
+        "rejected_candidates":
+            rejected_candidates,
     }
 
     question = AssessmentQuestion(
         assessment_id=assessment.id,
-        sequence_number=question_number,
-        concept=planned.concept,
-        difficulty=planned.difficulty,
-        question_text=planned.question_text,
+
+        sequence_number=(
+            question_number
+        ),
+
+        concept=(
+            accepted_plan.concept
+        ),
+
+        difficulty=(
+            accepted_plan.difficulty
+        ),
+
+        question_text=(
+            accepted_plan.question_text
+        ),
+
         expected_topics=json.dumps(
-            planned.expected_topics
+            accepted_plan.expected_topics
         ),
+
         evaluator_notes=(
-            planned.evaluator_notes
+            accepted_plan.evaluator_notes
         ),
+
         evidence=json.dumps(
             {
                 "planner":
@@ -691,17 +895,48 @@ async def plan_next_question(
         question_number
     )
 
-    database.commit()
-    database.refresh(question)
+    try:
+        database.commit()
+        database.refresh(question)
+
+    except IntegrityError:
+        database.rollback()
+
+        existing = (
+            find_question_by_sequence(
+                database=database,
+                assessment_id=assessment.id,
+                sequence_number=question_number,
+            )
+        )
+
+        if existing is None:
+            existing = (
+                find_unanswered_question(
+                    database=database,
+                    assessment_id=assessment.id,
+                )
+            )
+
+        if existing is None:
+            raise HTTPException(
+                status_code=(
+                    status
+                    .HTTP_409_CONFLICT
+                ),
+                detail=(
+                    "Question generation conflicted "
+                    "with another request."
+                ),
+            )
+
+        return serialize_question(
+            existing
+        )
 
     return serialize_question(
         question
     )
-
-
-# ==========================================================
-# LIST QUESTIONS
-# ==========================================================
 
 
 @router.get(
@@ -712,9 +947,7 @@ async def plan_next_question(
 )
 async def list_questions(
     assessment_id: int,
-    database: Session = Depends(
-        get_db
-    ),
+    database: Session = Depends(get_db),
     current_user: User = Depends(
         get_current_user
     ),
@@ -726,17 +959,10 @@ async def list_questions(
     )
 
     return [
-        serialize_question(
-            question
-        )
+        serialize_question(question)
         for question
         in assessment.questions
     ]
-
-
-# ==========================================================
-# SUBMIT ANSWER
-# ==========================================================
 
 
 @router.post(
@@ -747,9 +973,7 @@ async def submit_answer(
     assessment_id: int,
     question_id: int,
     request: SubmitAnswerRequest,
-    database: Session = Depends(
-        get_db
-    ),
+    database: Session = Depends(get_db),
     current_user: User = Depends(
         get_current_user
     ),
@@ -760,10 +984,7 @@ async def submit_answer(
         assessment_id=assessment_id,
     )
 
-    if (
-        assessment.status
-        != "in_progress"
-    ):
+    if assessment.status != "in_progress":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Assessment is not in progress.",
@@ -776,10 +997,7 @@ async def submit_answer(
         question_id=question_id,
     )
 
-    if (
-        question.learner_answer
-        is not None
-    ):
+    if question.learner_answer is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -796,7 +1014,10 @@ async def submit_answer(
 
     except json.JSONDecodeError:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=(
+                status
+                .HTTP_500_INTERNAL_SERVER_ERROR
+            ),
             detail=(
                 "Stored assessment metadata "
                 "is invalid."
@@ -808,7 +1029,10 @@ async def submit_answer(
         list,
     ):
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=(
+                status
+                .HTTP_500_INTERNAL_SERVER_ERROR
+            ),
             detail=(
                 "Stored assessment metadata "
                 "is invalid."
@@ -819,25 +1043,34 @@ async def submit_answer(
         evaluation = (
             await evaluate_assessment_answer(
                 model=request.model,
+
                 program_type=(
-                    assessment.program.program_type
+                    assessment
+                    .program
+                    .program_type
                 ),
+
                 concept=(
                     question.concept
                 ),
+
                 difficulty=(
                     question.difficulty
                 ),
+
                 question_text=(
                     question.question_text
                 ),
+
                 expected_topics=(
                     expected_topics
                 ),
+
                 evaluator_notes=(
                     question.evaluator_notes
                     or ""
                 ),
+
                 learner_answer=(
                     request.answer
                 ),
@@ -846,7 +1079,10 @@ async def submit_answer(
 
     except EvaluationError as exc:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            status_code=(
+                status
+                .HTTP_503_SERVICE_UNAVAILABLE
+            ),
             detail=str(exc),
         )
 
@@ -868,9 +1104,7 @@ async def submit_answer(
                 parsed,
                 dict,
             ):
-                previous_metadata = (
-                    parsed
-                )
+                previous_metadata = parsed
 
         except json.JSONDecodeError:
             previous_metadata = {}
@@ -920,6 +1154,7 @@ async def submit_answer(
 
     if assessment_complete:
         assessment.status = "completed"
+
         assessment.completed_at = (
             datetime.utcnow()
         )
@@ -930,34 +1165,39 @@ async def submit_answer(
 
     return AnswerEvaluationResponse(
         question_id=question.id,
+
         concept=question.concept,
+
         difficulty=question.difficulty,
+
         score=question.score,
+
         classification=classification,
+
         demonstrated=(
             evaluation.demonstrated
         ),
+
         gaps=(
             evaluation.gaps
         ),
+
         feedback=(
             evaluation.feedback
         ),
+
         questions_answered=(
             assessment.questions_answered
         ),
+
         max_questions=(
             assessment.max_questions
         ),
+
         assessment_complete=(
             assessment_complete
         ),
     )
-
-
-# ==========================================================
-# ABANDON
-# ==========================================================
 
 
 @router.post(
@@ -966,9 +1206,7 @@ async def submit_answer(
 )
 async def abandon_assessment(
     assessment_id: int,
-    database: Session = Depends(
-        get_db
-    ),
+    database: Session = Depends(get_db),
     current_user: User = Depends(
         get_current_user
     ),
@@ -979,10 +1217,7 @@ async def abandon_assessment(
         assessment_id=assessment_id,
     )
 
-    if (
-        assessment.status
-        != "in_progress"
-    ):
+    if assessment.status != "in_progress":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -992,6 +1227,7 @@ async def abandon_assessment(
         )
 
     assessment.status = "abandoned"
+
     assessment.completed_at = (
         datetime.utcnow()
     )

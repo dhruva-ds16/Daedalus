@@ -12,7 +12,9 @@ import {
 import AuthScreen from "./components/AuthScreen";
 import TutorApp from "./components/TutorApp";
 
+import KnowledgePage from "./pages/KnowledgePage";
 import AdminPage from "./pages/AdminPage";
+import AssessmentPage from "./pages/AssessmentPage";
 import DashboardPage from "./pages/DashboardPage";
 import ProgramPage from "./pages/ProgramPage";
 
@@ -38,6 +40,15 @@ function App() {
     selectedProgram,
     setSelectedProgram,
   ] = useState(null);
+
+  const [
+    selectedModel,
+    setSelectedModel,
+  ] = useState(
+    localStorage.getItem(
+      "daedalus-selected-model"
+    ) || ""
+  );
 
 
   useEffect(() => {
@@ -123,6 +134,20 @@ function App() {
   }
 
 
+  function handleModelChange(
+    model
+  ) {
+    setSelectedModel(
+      model
+    );
+
+    localStorage.setItem(
+      "daedalus-selected-model",
+      model
+    );
+  }
+
+
   function openProgram(
     program
   ) {
@@ -132,6 +157,34 @@ function App() {
 
     setPage(
       "program"
+    );
+  }
+
+
+  function startAssessment(
+    program
+  ) {
+    setSelectedProgram(
+      program
+    );
+
+    setPage(
+      "assessment"
+    );
+  }
+
+
+  function returnToProgram() {
+    if (selectedProgram) {
+      setPage(
+        "program"
+      );
+
+      return;
+    }
+
+    setPage(
+      "dashboard"
     );
   }
 
@@ -199,107 +252,131 @@ function App() {
   }
 
 
+  const assessmentMode =
+    page === "assessment";
+
+
   return (
     <div className="app">
 
-      <header className="header">
+      {!assessmentMode && (
 
-        <div
-          className="brand brand-clickable"
-          onClick={
-            returnToDashboard
-          }
-        >
+        <header className="header">
 
-          <h1>
-            DAEDALUS
-          </h1>
-
-          <p>
-            Adaptive Windows Internals
-            & Rust Tutor
-          </p>
-
-        </div>
-
-
-        <nav className="main-nav">
-
-          <button
-            className={
-              page === "dashboard"
-                ? "nav-button active"
-                : "nav-button"
-            }
+          <div
+            className="brand brand-clickable"
             onClick={
               returnToDashboard
             }
           >
-            Dashboard
-          </button>
 
+            <h1>
+              DAEDALUS
+            </h1>
 
-          <button
-            className={
-              page === "tutor"
-                ? "nav-button active"
-                : "nav-button"
-            }
-            onClick={() =>
-              setPage("tutor")
-            }
-          >
-            Ask Daedalus
-          </button>
-
-
-          {user.is_admin && (
-
-            <button
-              className={
-                page === "admin"
-                  ? "nav-button active"
-                  : "nav-button"
-              }
-              onClick={() =>
-                setPage("admin")
-              }
-            >
-              Admin
-            </button>
-
-          )}
-
-        </nav>
-
-
-        <div className="header-user">
-
-          <div>
-
-            <div className="header-username">
-              {user.username}
-            </div>
-
-            <div className="header-role">
-              {user.is_admin
-                ? "Administrator"
-                : "Learner"}
-            </div>
+            <p>
+              Adaptive Windows Internals
+              & Rust Tutor
+            </p>
 
           </div>
 
 
-          <button
-            className="logout-button"
-            onClick={logout}
-          >
-            Logout
-          </button>
+          <nav className="main-nav">
 
-        </div>
+            <button
+              className={
+                page === "dashboard"
+                  ? "nav-button active"
+                  : "nav-button"
+              }
+              onClick={
+                returnToDashboard
+              }
+            >
+              Dashboard
+            </button>
 
-      </header>
+
+            <button
+              className={
+                page === "tutor"
+                  ? "nav-button active"
+                  : "nav-button"
+              }
+              onClick={() =>
+                setPage("tutor")
+              }
+            >
+              Ask Daedalus
+            </button>
+
+
+            {user.is_admin && (
+
+              <button
+                className={
+                  page === "admin"
+                    ? "nav-button active"
+                    : "nav-button"
+                }
+                onClick={() =>
+                  setPage("admin")
+                }
+              >
+                Admin
+              </button>
+
+            )}
+	    {user.is_admin && (
+
+  	      <button
+                className={
+                  page === "knowledge"
+                    ? "nav-button active"
+                    : "nav-button"
+                }
+                onClick={() =>
+      	          setPage("knowledge")
+    	        }
+  	      >
+    	        Knowledge
+  	      </button>
+
+	    )}
+
+          </nav>
+
+
+          <div className="header-user">
+
+            <div>
+
+              <div className="header-username">
+                {user.username}
+              </div>
+
+              <div className="header-role">
+                {user.is_admin
+                  ? "Administrator"
+                  : "Learner"}
+              </div>
+
+            </div>
+
+
+            <button
+              className="logout-button"
+              onClick={logout}
+            >
+              Logout
+            </button>
+
+          </div>
+
+        </header>
+
+      )}
 
 
       {page === "dashboard" && (
@@ -318,7 +395,16 @@ function App() {
 
 
       {page === "tutor" && (
-        <TutorApp />
+
+        <TutorApp
+          selectedModel={
+            selectedModel
+          }
+          onModelChange={
+            handleModelChange
+          }
+        />
+
       )}
 
 
@@ -331,6 +417,30 @@ function App() {
           onBack={
             returnToDashboard
           }
+          onStartAssessment={
+            startAssessment
+          }
+        />
+
+      )}
+
+
+      {page === "assessment" &&
+        selectedProgram && (
+
+        <AssessmentPage
+          program={
+            selectedProgram
+          }
+          selectedModel={
+            selectedModel
+          }
+          onBack={
+            returnToProgram
+          }
+          onComplete={
+            returnToProgram
+          }
         />
 
       )}
@@ -342,6 +452,14 @@ function App() {
         <AdminPage
           currentUser={user}
         />
+
+      )}
+
+
+      {page === "knowledge" &&
+        user.is_admin && (
+
+        <KnowledgePage />
 
       )}
 

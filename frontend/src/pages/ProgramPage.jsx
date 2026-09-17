@@ -1,6 +1,7 @@
 function ProgramPage({
   program,
   onBack,
+  onStartAssessment,
 }) {
   if (!program) {
     return null;
@@ -22,6 +23,28 @@ function ProgramPage({
 
       default:
         return program.title;
+    }
+  }
+
+
+  function strategyLabel() {
+    switch (
+      program.starting_strategy
+    ) {
+      case "assessment":
+        return "Knowledge assessment";
+
+      case "beginning":
+        return "Start from beginning";
+
+      case "selected_level":
+        return (
+          program.selected_level ||
+          "Selected level"
+        );
+
+      default:
+        return program.starting_strategy;
     }
   }
 
@@ -62,16 +85,36 @@ function ProgramPage({
         </div>
 
         <h3>
-          Program created successfully
+          {program.starting_strategy ===
+          "assessment"
+            ? "Start with a knowledge assessment"
+            : "Ready for curriculum generation"}
         </h3>
 
-        <p>
-          Your learning program is now
-          persistent. The next Daedalus
-          milestone will use your starting
-          strategy to determine how the
-          curriculum should be created.
-        </p>
+
+        {program.starting_strategy ===
+        "assessment" ? (
+
+          <p>
+            Daedalus will adaptively assess
+            your current understanding before
+            creating your personalized
+            curriculum. Each question is
+            selected using evidence from your
+            previous answers.
+          </p>
+
+        ) : (
+
+          <p>
+            This program does not require an
+            assessment. Your curriculum will
+            be generated from your learner
+            profile, goals, and selected
+            starting strategy.
+          </p>
+
+        )}
 
 
         <div className="program-details">
@@ -82,10 +125,7 @@ function ProgramPage({
             </span>
 
             <strong>
-              {
-                program
-                  .starting_strategy
-              }
+              {strategyLabel()}
             </strong>
           </div>
 
@@ -115,6 +155,27 @@ function ProgramPage({
           </div>
 
         </div>
+
+
+        {program.starting_strategy ===
+          "assessment" && (
+
+          <div className="program-primary-action">
+
+            <button
+              className="assessment-primary"
+              onClick={() =>
+                onStartAssessment(
+                  program
+                )
+              }
+            >
+              Start / Resume Assessment →
+            </button>
+
+          </div>
+
+        )}
 
       </div>
 
