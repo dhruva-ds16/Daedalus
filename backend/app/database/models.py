@@ -443,6 +443,16 @@ class AssessmentQuestion(Base):
         nullable=False,
     )
 
+    expected_topics: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    evaluator_notes: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     learner_answer: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
